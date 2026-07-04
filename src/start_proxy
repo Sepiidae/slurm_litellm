@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# Change dir to scripts location
+cd "$(dirname "$0")" || exit
+
+# Load python 3.12, you must update this to match your modules or python install
+# Technically venv should hand this but, it has been a long night
+# and this makes it work for the author
+module load python/3.12.4-gcc-13.2.0-ryucfix
+
+source ~/slurm_litellm/.venv/bin/activate
+
+# Logging is a bit verbose (thanks gemini)
+python proxy.py
