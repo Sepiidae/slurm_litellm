@@ -17,3 +17,6 @@ tar -C ~/.local/bin -xzf ollama-linux-amd64.tgz --strip-components 1
 
 # Start your ollama instances
 sbatch sbatch.sh
+
+# Start your proxy
+./start_proxy
