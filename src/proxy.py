@@ -57,7 +57,6 @@ def get_active_slurm_nodes():
     return list(set(active_endpoints))
 
 def discover_models_from_endpoints(endpoints):
-    """Queries each Ollama endpoint's /api/tags to find loaded models."""
     discovered_model_list = []
 
     for url in endpoints:
@@ -67,26 +66,51 @@ def discover_models_from_endpoints(endpoints):
             with urllib.request.urlopen(req, timeout=3) as response:
                 data = json.loads(response.read().decode())
 
-                for model_info in data.get("models", []):
-                    full_name = model_info.get("name")
-                    base_name = full_name.split(":")[0]
+            for model_info in data.get("models", []):
+                full_name = model_info.get("name")
+                base_name = full_name.split(":")[0]
 
-                    for model_identifier in set([full_name, base_name]):
-                        discovered_model_list.append({
-                            "model_name": model_identifier,
-                            "litellm_params": {
-                                "model": f"ollama/{full_name}",
-                                "api_base": url,
-                                "request_timeout": 600,
-                                "keep_alive": "30m"
-                            }
-                        })
-                    logger.info(f"[Discovery Engine] Found active model '{full_name}' running on node {url}")
+                # --- NEW: Check explicit capabilities via /api/show ---
+                supports_vision = False
+                try:
+                    show_url = f"{url}/api/show"
+                    show_data = json.dumps({"model": full_name}).encode("utf-8")
+                    show_req = urllib.request.Request(show_url, data=show_data, method="POST")
+                    show_req.add_header("Content-Type", "application/json")
+
+                    with urllib.request.urlopen(show_req, timeout=2) as show_res:
+                        info = json.loads(show_res.read().decode())
+                        # Ollama returns explicit capability flags here
+                        capabilities = info.get("capabilities", [])
+                        if "vision" in capabilities:
+                            supports_vision = True
+                except Exception as show_err:
+                    logger.warning(f"Could not fetch capabilities for {full_name}: {show_err}")
+
+                # --- Assign LiteLLM Routing Parameters ---
+                for model_identifier in set([full_name, base_name]):
+                    litellm_params = {
+                        "model": f"ollama/{full_name}",
+                        "api_base": url,
+                        "request_timeout": 600,
+                        "keep_alive": "30m"
+                    }
+
+                    if supports_vision:
+                        litellm_params["custom_llm_provider"] = "ollama"
+                        litellm_params["supports_vision"] = True
+                        logger.info(f"👁️ [Vision Enabled] {model_identifier} on {url}")
+
+                    discovered_model_list.append({
+                        "model_name": model_identifier,
+                        "litellm_params": litellm_params
+                    })
 
         except Exception as e:
             logger.error(f"[Discovery Engine] Failed to fetch models from Ollama node {url}: {e}")
 
     return discovered_model_list
+
 
 async def cluster_discovery_loop():
     """Background task tracking both Slurm instances and their active models."""
