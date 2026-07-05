@@ -28,6 +28,8 @@ trap cleanup EXIT INT TERM
 # 4. Bind Ollama to all interfaces so the external proxy can talk to it
 export OLLAMA_HOST="0.0.0.0:${PORT}"
 export OLLAMA_KEEP_ALIVE="30m"
+export OLLAMA_MODELS=~/scratch/ollama/models
+mkdir -p $OLLAMA_MODELS
 
 # 5. Execute the server
 ~/.local/bin/ollama serve
