@@ -26,3 +26,25 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+## Step 2: Install Ollama
+```
+
+mkdir -p ~/.local/bin 
+curl -L https://ollama.com/download/ollama-linux-amd64.tgz -o ollama-linux-amd64.tgz 
+tar -C ~/.local/bin -xzf ollama-linux-amd64.tgz --strip-components 1
+```
+
+## Step 3: Start your ollama instances
+```
+sbatch sbatch.sh
+```
+
+## Step 4: Start your proxy
+```
+./start_proxy
+```
+
+## Step 5: Start your SSH forward to your PC
+```
+ssh username@looginnode.example.com -L 0.0.0.0:11434:loginnodeyoustartedproxyon:8000
+```
