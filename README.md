@@ -27,11 +27,20 @@ pip install -r requirements.txt
 ```
 
 ## Step 2: Install Ollama
+### Install Ollama locally in your home directory
 ```
 
 mkdir -p ~/.local/bin 
 curl -L https://ollama.com/download/ollama-linux-amd64.tgz -o ollama-linux-amd64.tgz 
 tar -C ~/.local/bin -xzf ollama-linux-amd64.tgz --strip-components 1
+```
+
+### Note: 
+Ollama's home directory ~/.ollama uses large amount of storage, hundres of GB, so make sure to place this one a file system with plenty of storage/quota.
+You can specify this location using 
+```
+# Example OLLAMA_MODELS Location
+export OLLAMA_MODELS=~/scratch/ollama/models
 ```
 
 ## Step 3: Start your ollama instances
