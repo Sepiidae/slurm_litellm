@@ -24,3 +24,5 @@ source .venv/bin/activate
 
 # Install dependencies (such as litellm, requirements, etc.)
 pip install -r requirements.txt
+```
+
