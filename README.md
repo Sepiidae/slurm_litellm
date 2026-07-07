@@ -8,12 +8,15 @@ This document outlines the setup, deployment, and execution workflow for managin
 
 > [!WARNING]  
 > **Network Connectivity Requirement:** > These steps must be executed from your login node (or equivalent coordinator node). The master node **must** have uninterrupted connection capabilities to `nodename:11434`. Please ensure all firewalls, security groups, or internal subnet rules are configured to clear this traffic.
+> **These instructions assume installation to $HOME
+> **These instructions assume ollama models will be in ~/scratch/ollama/models/
 
+Please update the scripts as needed to adjust this. 
 ---
 
 ## 🛠️ Step 1: Initial Environment Setup
 
-Initialize your local Python environment and install the foundational dependency requirements.
+Initialize your local Python environment and install the foundational dependency requirements. 
 
 ```bash
 # Create a isolated Python virtual environment
@@ -29,10 +32,10 @@ pip install -r requirements.txt
 ## Step 2: Install Ollama
 ### Install Ollama locally in your home directory
 ```
+cd src
+./install_ollama.sh
 
-mkdir -p ~/.local/bin 
-curl -L https://ollama.com/download/ollama-linux-amd64.tgz -o ollama-linux-amd64.tgz 
-tar -C ~/.local/bin -xzf ollama-linux-amd64.tgz --strip-components 1
+
 ```
 
 ### Note: 
