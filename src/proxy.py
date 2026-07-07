@@ -5,6 +5,7 @@ import asyncio
 import logging
 import json
 import urllib.request
+import yaml  # Added for config parsing
 from litellm.router import Router
 import uvicorn
 
@@ -28,6 +29,73 @@ router = Router(
 )
 
 proxy_server.llm_router = router
+
+# Keep track of when we last auto-scaled a model to prevent spamming sbatch
+last_scale_time = {}
+
+def load_scale_config():
+    """Loads model wait time configuration thresholds from config.yaml."""
+    config_path = "config.yaml"
+    if not os.path.exists(config_path):
+        return {}
+    try:
+        with open(config_path, "r") as f:
+            return yaml.safe_load(f).get("models", {})
+    except Exception as e:
+        logger.error(f"[Scale Engine] Failed to load config.yaml: {e}")
+        return {}
+
+def check_and_scale_models():
+    """Inspects router metrics and runs sbatch commands if wait times are too high."""
+    config = load_scale_config()
+    if not config:
+        return
+
+    # Fetch router metrics
+    # deployment_metrics holds request/error rates and latency details
+    metrics = getattr(router, "deployment_metrics", {})
+    if not metrics:
+        return
+
+    for model_name, target_config in config.items():
+        max_wait = target_config.get("max_wait_time_sec")
+        sbatch_cmd = target_config.get("sbatch_command")
+        
+        if not max_wait or not sbatch_cmd:
+            continue
+
+        # Look up metrics matching our model
+        # LiteLLM tracks metric per deployment id, so we aggregate if there are multiple
+        relevant_latencies = []
+        for deployment_id, details in metrics.items():
+            # Match if the deployment handles our model variant
+            if model_name in deployment_id:
+                # 'response_time' tracks moving average latency/wait times
+                resp_time = details.get("response_time", 0)
+                if resp_time > 0:
+                    relevant_latencies.append(resp_time)
+
+        if not relevant_latencies:
+            continue
+
+        avg_wait_time = sum(relevant_latencies) / len(relevant_latencies)
+        
+        if avg_wait_time > max_wait:
+            now = time.time()
+            # Cooldown check: Only spin up one cluster instance every 5 minutes per model
+            if now - last_scale_time.get(model_name, 0) > 300:
+                logger.warning(
+                    f"⚠️ [Scale Engine] Model '{model_name}' average wait time is {avg_wait_time:.2f}s "
+                    f"(Threshold: {max_wait}s). Scaling up via Slurm..."
+                )
+                try:
+                    # Run sbatch configured shell command split safely
+                    subprocess.run(sbatch_cmd, shell=True, check=True)
+                    logger.info(f"🚀 [Scale Engine] Successfully triggered: {sbatch_cmd}")
+                    last_scale_time[model_name] = now
+                except Exception as scale_err:
+                    logger.error(f"❌ [Scale Engine] Failed executing scaling command for {model_name}: {scale_err}")
+
 
 def get_active_slurm_nodes():
     """Finds running Ollama cluster endpoints via Slurm or heartbeats."""
@@ -70,7 +138,7 @@ def discover_models_from_endpoints(endpoints):
                 full_name = model_info.get("name")
                 base_name = full_name.split(":")[0]
 
-                # --- NEW: Check explicit capabilities via /api/show ---
+                # --- Check explicit capabilities via /api/show ---
                 supports_vision = False
                 try:
                     show_url = f"{url}/api/show"
@@ -80,7 +148,6 @@ def discover_models_from_endpoints(endpoints):
 
                     with urllib.request.urlopen(show_req, timeout=2) as show_res:
                         info = json.loads(show_res.read().decode())
-                        # Ollama returns explicit capability flags here
                         capabilities = info.get("capabilities", [])
                         if "vision" in capabilities:
                             supports_vision = True
@@ -134,6 +201,9 @@ async def cluster_discovery_loop():
             unique_models = list(set(m["model_name"] for m in updated_model_list))
             logger.info(f"[Discovery Engine] Sync complete. Configured {len(endpoints)} backends matching models: {unique_models}")
 
+            # 4. Check internal LiteLLM wait time statistics and perform scaling
+            await loop.run_in_executor(None, check_and_scale_models)
+
         except Exception as e:
             logger.error(f"[Discovery Engine] Error executing background cluster scan: {e}", exc_info=True)
 
@@ -142,7 +212,7 @@ async def cluster_discovery_loop():
 
 async def main():
     """Main execution orchestrator."""
-    # 1. Fire up your discovery task directly into the active async loop context
+    # 1. Fire up discovery task directly into the active async loop context
     asyncio.create_task(cluster_discovery_loop())
 
     # 2. Configure and run uvicorn programmatically inside the loop context

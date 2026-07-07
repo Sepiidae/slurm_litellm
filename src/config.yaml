@@ -1,0 +1,7 @@
+models:
+  llama3:
+    max_wait_time_sec: 5.0
+    sbatch_command: "sbatch run_llama3.sh"
+  mistral:
+    max_wait_time_sec: 10.0
+    sbatch_command: "sbatch run_mistral.sh"
