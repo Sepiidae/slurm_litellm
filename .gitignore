@@ -1,0 +1,6 @@
+.venv/
+deleteme2/
+logs/
+ollama-linux-amd64.tar
+ollama-linux-amd64.tar.zst
+ollama/

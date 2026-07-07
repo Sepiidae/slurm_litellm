@@ -1,21 +1,29 @@
 #!/bin/bash
 #SBATCH --job-name=ollama_server
-#SBATCH --nodes=1
-#SBATCH --gres=gpu:4
-#SBATCH --exclusive --mem=0
 #SBATCH --time=02:00:00
-#SBATCH --output=~/slurm_litellm/logs/ollama-%j.out
+#SBATCH --output=logs/ollama-%j.out
+#SBATCH --mem=0 --exclusive --gres=gpu:v100:4
+cd "$(dirname "$0")" || exit
+
+export PATH=$PATH:/mnt/beegfs/home/rresnick/slurm_litellm/src/ollama/bin
 
 # Used to specify the model to follow...
-MODEL=$(squeue -j $SLURM_JOB_ID -h -o "%C")
-COMMENT=$(squeue -j $SLURM_JOB_ID -h -o "%C")
+if [ "$COMMENT" == "" ]
+then
 
-
+  MODEL=$(squeue  --Format comment -h -j $SLURM_JOB_ID)
+  COMMENT="$MODEL"
+  echo $COMMENT
+else
+  MODEL=$COMMENT
+fi
+echo Args: $@
 # Generate a unique key to store the model download based on the model provide
 
 # 0. Start a dependency on this node to keep ollama running when this job ends
-sbatch --dependency=afterany:$SLURM_JOB_ID $@ sbatch.sh
-echo sbatch --dependency=afterany:$SLURM_JOB_ID $@ sbatch.sh
+echo Starting dependency on $SLURM_JOB_ID
+sbatch --comment="$COMMENT" --dependency=afterany:$SLURM_JOB_ID sbatch.sh
+echo sbatch --comment="$COMMENT" --dependency=afterany:$SLURM_JOB_ID sbatch.sh
 
 # 1. Determine this node's exact network IP or hostname, this is a backup incase squeue don't work in proxy.py
 NODE_IP=$(hostname -I | awk '{print $1}')
@@ -38,23 +46,29 @@ export OLLAMA_HOST="0.0.0.0:${PORT}"
 export OLLAMA_KEEP_ALIVE="30m"
 
 
-export OLLAMA_MODELS=~/scratch/ollama/models/$(echo $MODEL | sha256)
+export OLLAMA_MODELS=~/scratch/ollama/models/$(echo $MODEL | sha256sum |   awk '{print $1}')
 mkdir -p $OLLAMA_MODELS
 
 # 5. Execute the server
 # ~/.local/bin/ollama serve
-srun --ntasks=1 --nodes=1 ollama serve &
+ollama serve &
 
 until curl -s http://${OLLAMA_HOST}/ > /dev/null; do
     sleep 1
 done
 
-
+echo $OLLAMA_MODELS
 echo Ollama is ready
-ollama pull $MODEL
+echo ollama pull $MODEL
+for M in $MODEL
+do
+	echo pulling $M
+	ollama pull $M
+done
+
 
 while curl -s http://${OLLAMA_HOST}/ > /dev/null; do
-    sleep 30
+    sleep 5
 done
 
 echo Ollama is dead Jim

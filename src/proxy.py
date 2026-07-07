@@ -21,6 +21,19 @@ import litellm.proxy.proxy_server as proxy_server
 from litellm.proxy.proxy_server import app
 
 
+def load_scale_config():
+    """Loads model wait time configuration thresholds from config.yaml."""
+    config_path = "config.yaml"
+    if not os.path.exists(config_path):
+        return {}
+    try:
+        with open(config_path, "r") as f:
+            return yaml.safe_load(f).get("models", {})
+    except Exception as e:
+        logger.error(f"[Scale Engine] Failed to load config.yaml: {e}")
+        return {}
+
+
 def get_initial_placeholder_models():
     """Ensures models in config.yaml are always known to the router, 
     even if 0 active Slurm nodes are currently running them."""
@@ -51,19 +64,6 @@ proxy_server.llm_router = router
 
 # Keep track of when we last auto-scaled a model to prevent spamming sbatch
 last_scale_time = {}
-
-def load_scale_config():
-    """Loads model wait time configuration thresholds from config.yaml."""
-    config_path = "config.yaml"
-    if not os.path.exists(config_path):
-        return {}
-    try:
-        with open(config_path, "r") as f:
-            return yaml.safe_load(f).get("models", {})
-    except Exception as e:
-        logger.error(f"[Scale Engine] Failed to load config.yaml: {e}")
-        return {}
-
 def check_and_scale_models():
     """Inspects router metrics and runs sbatch commands if wait times are too high."""
     config = load_scale_config()

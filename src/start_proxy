@@ -8,7 +8,14 @@ cd "$(dirname "$0")" || exit
 # and this makes it work for the author
 module load python/3.12.4-gcc-13.2.0-ryucfix
 
+if [ ! -d .venv ]
+then
+	python -m venv .venv
+fi
+
 source .venv/bin/activate
+# Check Requirements
+pip install -r requirements.txt
 
 # Logging is a bit verbose (thanks gemini)
 python proxy.py
