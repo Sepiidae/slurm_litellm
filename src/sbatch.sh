@@ -14,7 +14,8 @@ COMMENT=$(squeue -j $SLURM_JOB_ID -h -o "%C")
 # Generate a unique key to store the model download based on the model provide
 
 # 0. Start a dependency on this node to keep ollama running when this job ends
-sbatch --dependency=afterany:$SLURM_JOB_ID --comment="$COMMENT" sbatch.sh
+sbatch --dependency=afterany:$SLURM_JOB_ID $@ sbatch.sh
+echo sbatch --dependency=afterany:$SLURM_JOB_ID $@ sbatch.sh
 
 # 1. Determine this node's exact network IP or hostname, this is a backup incase squeue don't work in proxy.py
 NODE_IP=$(hostname -I | awk '{print $1}')
