@@ -8,7 +8,7 @@ cd "$(dirname "$0")" || exit
 # and this makes it work for the author
 module load python/3.12.4-gcc-13.2.0-ryucfix
 
-source ~/slurm_litellm/.venv/bin/activate
+source .venv/bin/activate
 
 # Logging is a bit verbose (thanks gemini)
 python proxy.py

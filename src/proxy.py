@@ -20,9 +20,28 @@ logger = logging.getLogger("slurm-proxy")
 import litellm.proxy.proxy_server as proxy_server
 from litellm.proxy.proxy_server import app
 
+
+def get_initial_placeholder_models():
+    """Ensures models in config.yaml are always known to the router, 
+    even if 0 active Slurm nodes are currently running them."""
+    config = load_scale_config()
+    placeholders = []
+    
+    for model_name in config.keys():
+        placeholders.append({
+            "model_name": model_name,
+            "litellm_params": {
+                "model": f"ollama/{model_name}",
+                "api_base": "http://placeholder-until-slurm-starts:11434",
+                "request_timeout": 600
+            }
+        })
+    return placeholders
+
+
 # Initialize LiteLLM Router with an empty list
 router = Router(
-    model_list=[],
+    model_list=get_initial_placeholder_models(),
     routing_strategy="least-busy",
     enable_pre_call_checks=True,
     cooldown_time=5
