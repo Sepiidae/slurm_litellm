@@ -8,6 +8,7 @@ import urllib.request
 import yaml  # Added for config parsing
 from litellm.router import Router
 import uvicorn
+import getpass
 
 # Set up visible logging
 logging.basicConfig(
@@ -120,6 +121,11 @@ def get_active_slurm_nodes():
     """Finds running Ollama cluster endpoints via Slurm or heartbeats."""
     active_endpoints = []
     try:
+        current_user = getpass.getuser()
+        logger.info(f"[Discovery Engine] Scanning Slurm jobs for user: {current_user}")
+
+        # Added "-u <current_user>" to filter the squeue results automatically
+        cmd = ["squeue", "-u", current_user, "-t", "RUNNING", "-n", "ollama_server", "-o", "%B"]
         cmd = ["squeue", "-t", "RUNNING", "-n", "ollama_server", "-o", "%B"]
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         lines = result.stdout.strip().split('\n')

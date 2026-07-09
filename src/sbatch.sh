@@ -1,29 +1,24 @@
 #!/bin/bash
 #SBATCH --job-name=ollama_server
 #SBATCH --time=02:00:00
-#SBATCH --output=logs/ollama-%j.out
+#SBATCH --output=logs/ollama-%N.out
 #SBATCH --mem=0 --exclusive --gres=gpu:v100:4
-cd "$(dirname "$0")" || exit
+# cd "$(dirname "$0")" || exit
 
-export PATH=$PATH:/mnt/beegfs/home/rresnick/slurm_litellm/src/ollama/bin
+export PATH=$PATH:~/slurm_litellm/src/ollama/bin
 
 # Used to specify the model to follow...
-if [ "$COMMENT" == "" ]
-then
 
-  MODEL=$(squeue  --Format comment -h -j $SLURM_JOB_ID)
-  COMMENT="$MODEL"
-  echo $COMMENT
-else
-  MODEL=$COMMENT
-fi
+
 echo Args: $@
+MODELS=$@
+
 # Generate a unique key to store the model download based on the model provide
 
 # 0. Start a dependency on this node to keep ollama running when this job ends
 echo Starting dependency on $SLURM_JOB_ID
-sbatch --comment="$COMMENT" --dependency=afterany:$SLURM_JOB_ID sbatch.sh
-echo sbatch --comment="$COMMENT" --dependency=afterany:$SLURM_JOB_ID sbatch.sh
+sbatch --dependency=afterany:$SLURM_JOB_ID sbatch.sh $@
+echo sbatch --dependency=afterany:$SLURM_JOB_ID sbatch.sh $@
 
 # 1. Determine this node's exact network IP or hostname, this is a backup incase squeue don't work in proxy.py
 NODE_IP=$(hostname -I | awk '{print $1}')
@@ -44,28 +39,47 @@ trap cleanup EXIT INT TERM
 # 4. Bind Ollama to all interfaces so the external proxy can talk to it
 export OLLAMA_HOST="0.0.0.0:${PORT}"
 export OLLAMA_KEEP_ALIVE="30m"
-
-
 export OLLAMA_MODELS=~/scratch/ollama/models/$(echo $MODEL | sha256sum |   awk '{print $1}')
-mkdir -p $OLLAMA_MODELS
+
+if [ ! -d $OLLMA_MODELS ]
+then
+	mkdir -p $OLLAMA_MODELS
+	if $?
+	then
+		echo Failed to create $OLLAMA_MODELS
+	        exit 1	
+	fi
+else
+	echo $OLLAMA_MODELS exists
+fi
+
+
 
 # 5. Execute the server
 # ~/.local/bin/ollama serve
 ollama serve &
 
 until curl -s http://${OLLAMA_HOST}/ > /dev/null; do
-    sleep 1
+    echo "Waiting for ollama to start"
+    sleep 5
+    if ! ps aux | grep "[o]llama"
+    then
+	    echo "Failed to start ollama"
+	    exit 2
+    fi    
 done
 
-echo $OLLAMA_MODELS
 echo Ollama is ready
-echo ollama pull $MODEL
-for M in $MODEL
+echo Requested $OLLAMA_MODELS
+
+for MODEL in $MODELS
 do
-	echo pulling $M
-	ollama pull $M
+	echo pulling $MODEL
+	ollama pull $MODEL
 done
 
+
+echo `date` $OLLAMA_HOST $OLLAMA_MODELS >> logs/running_models
 
 while curl -s http://${OLLAMA_HOST}/ > /dev/null; do
     sleep 5
