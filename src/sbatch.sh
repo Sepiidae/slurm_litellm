@@ -7,7 +7,7 @@
 
 PORT=$((11000 + (SLURM_JOB_ID % 10000)))
 echo Starting dependency on $SLURM_JOB_ID
-sbatch --dependency=afterany:$SLURM_JOB_ID sbatch.sh $@
+sbatch --job-name="$SLURM_JOB_NAME" --dependency=afterany:$SLURM_JOB_ID sbatch.sh $@
 
 #PORT=11434
 export OLLAMA_HOST="0.0.0.0:$PORT"
