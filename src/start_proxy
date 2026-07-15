@@ -18,4 +18,4 @@ source .venv/bin/activate
 #pip install -r requirements.txt
 
 # Logging is a bit verbose (thanks gemini)
-python proxy.py
+python proxy_sbatch.py

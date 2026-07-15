@@ -1,13 +1,13 @@
 #!/bin/bash
 #SBATCH --job-name=ollama-server
 #SBATCH --output=logs/ollama_%j.log
-#SBATCH --gres=gpu:v100:4
+#SBATCH --gres=gpu:a100:3
 #SBATCH --exclusive --mem=0
 #SBATCH --time=04:00:00
 
 PORT=$((11000 + (SLURM_JOB_ID % 10000)))
 echo Starting dependency on $SLURM_JOB_ID
-sbatch --dependency=afterany:$SLURM_JOB_ID sbatch.sh $@
+sbatch --dependency=afterany:$SLURM_JOB_ID sbatch_a100.sh $@
 
 #PORT=11434
 export OLLAMA_HOST="0.0.0.0:$PORT"

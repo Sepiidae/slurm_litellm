@@ -4,8 +4,8 @@
 # Store the recommended embedding models in an array
 RECOMMENDED_EMBEDS="nomic-embed-text bge-m3 mxbai-embed-large text-embedding-3-small text-embedding-3-large BAAI/bge-large-en-v1.5 sentence-transformers/all-mpnet-base-v2"
 
-sbatch sbatch.sh HammerAI/gemma-4-e4b-heretic llama3.3 $RECOMMENDED_EMBEDS 
-sbatch sbatch.sh tinyrick/gemma-4-31B-it-uncensored-heretic-vision-llmfan46:Q4_K_M
+sbatch sbatch.sh small-llm HammerAI/gemma-4-e4b-heretic llama3.3 $RECOMMENDED_EMBEDS 
+sbatch sbatch.sh big-llm tinyrick/gemma-4-31B-it-uncensored-heretic-vision-llmfan46:Q4_K_M
 
 #sbatch sbatch.sh HammerAI/gemma-4-e4b-heretic
 #sbatch sbatch.sh gemma4:e4b 

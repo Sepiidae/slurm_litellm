@@ -1,0 +1,93 @@
+#!/bin/bash
+#SBATCH --job-name=ollama_server
+#SBATCH --time=02:00:00
+#SBATCH --output=logs/ollama-%N.out
+#SBATCH --mem=0 --exclusive --gres=gpu:v100:4
+# cd "$(dirname "$0")" || exit
+
+export PATH=$PATH:~/slurm_litellm/src/ollama/bin
+
+# Used to specify the model to follow...
+
+
+echo Args: $@
+MODELS=$@
+
+# Generate a unique key to store the model download based on the model provide
+
+# 0. Start a dependency on this node to keep ollama running when this job ends
+echo Starting dependency on $SLURM_JOB_ID
+sbatch --dependency=afterany:$SLURM_JOB_ID sbatch.sh $@
+echo sbatch --dependency=afterany:$SLURM_JOB_ID sbatch.sh $@
+
+# 1. Determine this node's exact network IP or hostname, this is a backup incase squeue don't work in proxy.py
+NODE_IP=$(hostname -I | awk '{print $1}')
+PORT=11434
+
+# Create heartbeats
+mkdir ~/slurm_litellm/ollama_heartbeats/
+HEARTBEAT_FILE="~/slurm_litellm/ollama_heartbeats/${SLURM_JOB_ID}"
+
+# 2. Write an active heartbeat entry for the python proxy to pick up
+echo "http://${NODE_IP}:${PORT}" > "${HEARTBEAT_FILE}"
+
+# 3. Clean up the heartbeat file when the job terminates or is killed
+cleanup() {
+    echo "Stopping job and cleaning up entry..."
+    rm -f "${HEARTBEAT_FILE}"
+}
+
+trap cleanup EXIT INT TERM
+
+# 4. Bind Ollama to all interfaces so the external proxy can talk to it
+export OLLAMA_HOST="0.0.0.0:${PORT}"
+export OLLAMA_KEEP_ALIVE="30m"
+export OLLAMA_MODELS=~/scratch/ollama/models/$1
+
+if [ ! -d $OLLMA_MODELS ]
+then
+	mkdir -p $OLLAMA_MODELS
+	if $?
+	then
+		echo Failed to create $OLLAMA_MODELS
+	        exit 1	
+	fi
+else
+	echo $OLLAMA_MODELS exists
+fi
+
+
+
+# 5. Execute the server
+# ~/.local/bin/ollama serve
+ollama serve &
+
+until curl -s http://${OLLAMA_HOST}/ > /dev/null; do
+    echo "Waiting for ollama to start"
+    sleep 5
+    if ! ps aux | grep "[o]llama"
+    then
+	    echo "Failed to start ollama"
+	    exit 2
+    fi    
+done
+
+echo Ollama is ready
+echo Requested $OLLAMA_MODELS
+
+for MODEL in $MODELS
+do
+	echo pulling $MODEL
+	ollama pull $MODEL
+done
+
+
+echo `date` $OLLAMA_HOST $OLLAMA_MODELS >> logs/running_models
+
+while curl -s http://${OLLAMA_HOST}/ > /dev/null; do
+    sleep 5
+done
+
+echo Ollama is dead Jim
+
+

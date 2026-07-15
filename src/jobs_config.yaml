@@ -9,9 +9,12 @@
 jobs:
   - job_name: "bulk-llm"
     models:
+      - tinyllama
       - nomic-embed-text 
       - bge-m3 
+      - embeddinggemma
       - mxbai-embed-large 
+      - nomic-embed-text:latest
       - text-embedding-3-small 
       - text-embedding-3-large 
       - BAAI/bge-large-en-v1.5 
