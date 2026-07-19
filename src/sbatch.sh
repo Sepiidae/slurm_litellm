@@ -6,10 +6,11 @@
 #SBATCH --time=04:00:00
 
 PORT=$((11000 + (SLURM_JOB_ID % 10000)))
-echo Starting dependency on $SLURM_JOB_ID
-sbatch --job-name="$SLURM_JOB_NAME" --dependency=afterany:$SLURM_JOB_ID sbatch.sh $@
+#echo Starting dependency on $SLURM_JOB_ID
+#sbatch --job-name="$SLURM_JOB_NAME" --dependency=afterany:$SLURM_JOB_ID sbatch.sh $@
 
 #PORT=11434
+export OLLAMA_KEEP_ALIVE=-1
 export OLLAMA_HOST="0.0.0.0:$PORT"
 export OLLAMA_MODELS=~/scratch/ollama/models
 echo "Starting Ollama instance on port $PORT"
