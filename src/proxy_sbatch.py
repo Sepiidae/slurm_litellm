@@ -24,32 +24,42 @@ def load_config(config_path="jobs_config.yaml"):
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
 
-def get_job_info_by_name(job_name):
-    """Queries squeue for a specific job name."""
+def get_jobs_info_by_name(job_name):
+    """Queries squeue for all jobs matching a specific job name."""
     try:
-        cmd = ["squeue", "--name", job_name, "-h", "-o", "%i %t %N"]
+        cmd = ["squeue", "--me", "--name", job_name, "-h", "-o", "%i %t %N"]
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         output = result.stdout.strip()
         if not output:
-            return None, None, None
+            return []
 
+        jobs = []
         lines = [line.split() for line in output.split('\n') if line.strip()]
-        running_job = next((parts for parts in lines if len(parts) >= 2 and parts[1] == "R"), None)
-        selected_parts = running_job if running_job else lines[0]
-
-        if len(selected_parts) >= 2:
-            job_id = selected_parts[0]
-            state = selected_parts[1]
-            node_name = selected_parts[2] if len(selected_parts) > 2 else None
-            return job_id, state, node_name
+        for parts in lines:
+            if len(parts) >= 2:
+                job_id = parts[0]
+                state = parts[1]
+                node_name = parts[2] if len(parts) > 2 else None
+                jobs.append((job_id, state, node_name))
+        return jobs
     except Exception as e:
         logger.warning(f"Error querying squeue: {e}")
-    return None, None, None
+    return []
 
-def launch_slurm_job(job_name):
-    """Submits a new job to Slurm."""
-    cmd = ["sbatch", f"--job-name={job_name}", "sbatch.sh"]
+def launch_slurm_job(job_name, gres=None, mem=None, exclusive=False):
+    """Submits a new job to Slurm with optional resource configuration flags."""
+    cmd = ["sbatch", f"--job-name={job_name}"]
+    
+    if gres:
+        cmd.append(f"--gres={gres}")
+    if mem:
+        cmd.append(f"--mem={mem}")
+    if exclusive:
+        cmd.append("--exclusive")
+        
+    cmd.append("sbatch.sh")
+
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         logger.error(f"Failed to submit Slurm job '{job_name}': {result.stderr.strip()}")
@@ -82,49 +92,64 @@ def _async_pull_model(endpoint, model, job_name, node_name, cache_key):
             PENDING_PULLS.discard(cache_key)
 
 def process_single_cluster(job_spec):
-    """Non-blocking check for a single cluster."""
+    """Non-blocking check for cluster jobs matching job_spec."""
     job_name = job_spec["job_name"]
     models = job_spec["models"]
+    
+    # Extract configurable parameters with sensible defaults
+    target_count = job_spec.get("num_jobs", job_spec.get("count", 1))
+    gres = job_spec.get("gres", None)
+    mem = job_spec.get("mem", job_spec.get("memory", None))
+    exclusive = job_spec.get("exclusive", False)
 
-    job_id, state, node_name = get_job_info_by_name(job_name)
+    existing_jobs = get_jobs_info_by_name(job_name)
+    current_count = len(existing_jobs)
 
-    if not job_id:
-        logger.info(f"🔍 Cluster '{job_name}' not found. Submitting fresh Slurm job...")
-        job_id = launch_slurm_job(job_name)
-        return []
-
-    if state != "R" or not node_name or "CONFIGURING" in node_name:
-        logger.info(f"⏳ Cluster '{job_name}' (Job ID: {job_id}) is in state '{state}'. Waiting...")
-        return []
-
-    port = 11000 + (int(job_id) % 10000)
-    endpoint = f"http://{node_name}:{port}"
-
-    for model in models:
-        cache_key = f"{endpoint}/{model}"
-        if cache_key not in PULLED_MODELS_CACHE:
-            with PENDING_PULLS_LOCK:
-                if cache_key not in PENDING_PULLS:
-                    PENDING_PULLS.add(cache_key)
-                    pull_thread = threading.Thread(
-                        target=_async_pull_model,
-                        args=(endpoint, model, job_name, node_name, cache_key),
-                        daemon=True
-                    )
-                    pull_thread.start()
+    # Launch additional job instances if running under target count
+    if current_count < target_count:
+        needed = target_count - current_count
+        logger.info(f"🔍 Cluster '{job_name}' has {current_count}/{target_count} jobs running. Submitting {needed} new job(s)...")
+        for _ in range(needed):
+            launch_slurm_job(job_name, gres=gres, mem=mem, exclusive=exclusive)
 
     job_models = []
-    for model in models:
-        llm_type = "ollama_chat" if "embed" not in model else "ollama"
-        job_models.append({
-            "model_name": model,
-            "litellm_params": {
-                "model": f"{llm_type}/{model}",
-                "api_base": f"{endpoint}",
-                "max_parallel_requests": 5,
-                "tool_choice": "none"
-            }
-        })
+
+    # Process all active instances
+    for job_id, state, node_name in existing_jobs:
+        if state != "R" or not node_name or "CONFIGURING" in node_name:
+            logger.info(f"⏳ Cluster '{job_name}' (Job ID: {job_id}) is in state '{state}'. Waiting...")
+            continue
+
+        port = 11000 + (int(job_id) % 10000)
+        endpoint = f"http://{node_name}:{port}"
+
+        # Trigger model downloads asynchronously for running instances
+        for model in models:
+            cache_key = f"{endpoint}/{model}"
+            if cache_key not in PULLED_MODELS_CACHE:
+                with PENDING_PULLS_LOCK:
+                    if cache_key not in PENDING_PULLS:
+                        PENDING_PULLS.add(cache_key)
+                        pull_thread = threading.Thread(
+                            target=_async_pull_model,
+                            args=(endpoint, model, job_name, node_name, cache_key),
+                            daemon=True
+                        )
+                        pull_thread.start()
+
+        # Build active route endpoints for LiteLLM router
+        for model in models:
+            llm_type = "ollama_chat" if "embed" not in model else "ollama"
+            job_models.append({
+                "model_name": model,
+                "litellm_params": {
+                    "model": f"{llm_type}/{model}",
+                    "api_base": f"{endpoint}",
+                    "max_parallel_requests": 5,
+                    "tool_choice": "none"
+                }
+            })
+
     return job_models
 
 def start_litellm_proxy(config_filename):
@@ -163,10 +188,10 @@ def main():
             config = load_config()
             active_models = []
 
-            with ThreadPoolExecutor(max_workers=max(1, len(config["jobs"]))) as executor:
+            with ThreadPoolExecutor(max_workers=max(1, len(config.get("jobs", [])))) as executor:
                 futures = {
                     executor.submit(process_single_cluster, job_spec): job_spec
-                    for job_spec in config["jobs"]
+                    for job_spec in config.get("jobs", [])
                 }
                 for future in as_completed(futures):
                     try:
@@ -188,13 +213,12 @@ def main():
                         pass
 
             if current_on_disk != proxy_config:
-                # 1. Update the physical disk copy
-                logger.info("Updating physical disk  copy")
+                logger.info("Updating physical disk copy")
                 with open(config_filename, "w") as f:
                     yaml.dump(proxy_config, f, default_flow_style=False)
 
-                logger.info("Updated physical disk  copy")
-                # 2. FIXED: Dynamically inject the list directly into LiteLLM's live router memory
+                logger.info("Updated physical disk copy")
+
                 try:
                     from litellm.proxy.proxy_server import llm_router
                     if llm_router is not None:

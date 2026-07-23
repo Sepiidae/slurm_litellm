@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=ollama-server
 #SBATCH --output=logs/ollama_%j.log
-#SBATCH --gres=gpu:v100:4
+#SBATCH --gres=gpu:a100:3
 #SBATCH --exclusive --mem=0
 #SBATCH --time=04:00:00
 

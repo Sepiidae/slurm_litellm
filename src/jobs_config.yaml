@@ -8,6 +8,9 @@
 #
 jobs:
   - job_name: "bulk-llm"
+    num_jobs: 1
+    exclusive: true
+    gres: gpu:2
     models:
       - tinyllama
       - nomic-embed-text 
@@ -19,9 +22,17 @@ jobs:
       - llama3.2
       - llama3.1
   - job_name: "big-gemma"
+    num_jobs: 1
+    gres: gpu:a100:3
+    memory: 0
+    exclusive: true
     models:
       - tinyrick/gemma-4-31B-it-uncensored-heretic-vision-llmfan46:Q4_K_M
   - job_name: "big-llama3.3"
+    num_jobs: 1
+    memory: 0
+    gres: gpu:v100:4
+    exclusive: true
     models:
       - llama3.3
       - huihui_ai/llama3.3-abliterated:latest
