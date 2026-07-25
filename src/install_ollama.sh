@@ -6,7 +6,7 @@ then
 fi
 
 zstd -d ollama-linux-amd64.tar.zst 
-mkdir ollama
-cd ollama
-tar -xf ../ollama-linux-amd64.tar
+
+mkdir ~/ollama
+tar -xf ./ollama-linux-amd64.tar -C ~/ollama
 

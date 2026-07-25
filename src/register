@@ -1,0 +1,9 @@
+#!/bin/bash
+
+curl -X POST http://localhost:8000/register   -H "Content-Type: application/json"   -d '{
+    "username": "johndoe",
+    "host/ip": "rocky-login011.hpc.fau.edu"
+    "port": 8000,
+    "key": "sk-local-litellm-key-abc1234",
+    "model_name": "local-llama3"
+  }'
