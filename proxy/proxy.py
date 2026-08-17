@@ -128,6 +128,10 @@ def get_user_slurm_jobs():
         cmd = ["squeue", "--me", "-h", "-o", "%i|%j|%t|%N"]
         result = subprocess.run(cmd, capture_output=True, text=True)
 
+        if result.returncode != 0:
+            logger.error(f"squeue command failed with exit code {result.returncode}: {result.stderr.strip()}")
+            return None  # Signal query failure instead of empty list
+
         output = result.stdout.strip()
         if not output:
             return []
@@ -147,11 +151,17 @@ def get_user_slurm_jobs():
                 })
         return jobs
     except Exception as e:
-        logger.warning(f"Error querying squeue: {e}")
-        return []
+        logger.error(f"Error querying squeue: {e}")
+        return None  # Return None so orchestrator skips reconciliation
+
 
 
 def launch_slurm_job(job_name, gres=None, mem=None, exclusive=False, script_path="sbatch.sh"):
+    """Non-blocking check for cluster jobs matching job_spec."""
+    if all_slurm_jobs is None:
+        logger.warning(f"Skipping cluster check for '{job_spec.get('job_name')}' due to squeue query failure.")
+        return []
+    
     """Submits a new job to Slurm with optional resource configuration flags."""
     cmd = ["sbatch", f"--job-name={job_name}"]
     if gres:
@@ -354,16 +364,22 @@ def main():
 
     logger.info("--- Phase 2: Starting Orchestration Loop ---")
 
-    while True:
+while True:
         try:
             config = load_config(args.config)
             active_models = []
 
             # Single squeue query per loop cycle
             all_slurm_jobs = get_user_slurm_jobs()
+            
+            if all_slurm_jobs is None:
+                logger.warning("⚠️ Skipping cycle: Unable to reach Slurm/squeue.")
+                time.sleep(5)
+                continue
+
             active_squeue_ids = {j["job_id"] for j in all_slurm_jobs}
 
-            # Clean up tracking table
+            # Clean up tracking table (only runs when squeue successfully returned)
             now = time.time()
             with SUBMITTED_JOBS_LOCK:
                 dead_ids = [
@@ -373,6 +389,7 @@ def main():
                 for d_id in dead_ids:
                     SUBMITTED_JOBS.pop(d_id, None)
 
+            # Process clusters concurrently...
             # Process clusters concurrently
             with ThreadPoolExecutor(max_workers=max(1, len(config.get("jobs", [])))) as executor:
                 futures = {
