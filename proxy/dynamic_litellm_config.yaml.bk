@@ -1,0 +1,253 @@
+model_list:
+- litellm_params:
+    api_base: http://nodegpu104:12406
+    max_parallel_requests: 5
+    model: ollama_chat/gpt-oss:20b
+    tool_choice: none
+  model_name: gpt-oss:20b
+- litellm_params:
+    api_base: http://nodegpu104:12406
+    max_parallel_requests: 5
+    model: ollama_chat/richardyoung/gpt-oss-20b-abliterated:latest
+    tool_choice: none
+  model_name: richardyoung/gpt-oss-20b-abliterated:latest
+- litellm_params:
+    api_base: http://nodegpu104:12406
+    max_parallel_requests: 5
+    model: ollama_chat/gemma4:12b
+    tool_choice: none
+  model_name: gemma4:12b
+- litellm_params:
+    api_base: http://nodegpu104:12406
+    max_parallel_requests: 5
+    model: ollama_chat/HammerAI/gemma-4-e4b-heretic
+    tool_choice: none
+  model_name: HammerAI/gemma-4-e4b-heretic
+- litellm_params:
+    api_base: http://nodegpu104:12406
+    max_parallel_requests: 5
+    model: ollama_chat/llama3.3
+    tool_choice: none
+  model_name: llama3.3
+- litellm_params:
+    api_base: http://nodegpu104:12406
+    max_parallel_requests: 5
+    model: ollama_chat/llama3.2:3b
+    tool_choice: none
+  model_name: llama3.2:3b
+- litellm_params:
+    api_base: http://nodegpu104:12406
+    max_parallel_requests: 5
+    model: ollama_chat/gemma4:e4b
+    tool_choice: none
+  model_name: gemma4:e4b
+- litellm_params:
+    api_base: http://nodegpu107:12411
+    max_parallel_requests: 5
+    model: ollama_chat/gpt-oss:20b
+    tool_choice: none
+  model_name: gpt-oss:20b
+- litellm_params:
+    api_base: http://nodegpu107:12411
+    max_parallel_requests: 5
+    model: ollama_chat/richardyoung/gpt-oss-20b-abliterated:latest
+    tool_choice: none
+  model_name: richardyoung/gpt-oss-20b-abliterated:latest
+- litellm_params:
+    api_base: http://nodegpu107:12411
+    max_parallel_requests: 5
+    model: ollama_chat/gemma4:12b
+    tool_choice: none
+  model_name: gemma4:12b
+- litellm_params:
+    api_base: http://nodegpu107:12411
+    max_parallel_requests: 5
+    model: ollama_chat/HammerAI/gemma-4-e4b-heretic
+    tool_choice: none
+  model_name: HammerAI/gemma-4-e4b-heretic
+- litellm_params:
+    api_base: http://nodegpu107:12411
+    max_parallel_requests: 5
+    model: ollama_chat/llama3.3
+    tool_choice: none
+  model_name: llama3.3
+- litellm_params:
+    api_base: http://nodegpu107:12411
+    max_parallel_requests: 5
+    model: ollama_chat/llama3.2:3b
+    tool_choice: none
+  model_name: llama3.2:3b
+- litellm_params:
+    api_base: http://nodegpu107:12411
+    max_parallel_requests: 5
+    model: ollama_chat/gemma4:e4b
+    tool_choice: none
+  model_name: gemma4:e4b
+- litellm_params:
+    api_base: http://nodegpu108:12413
+    max_parallel_requests: 5
+    model: ollama_chat/gpt-oss:20b
+    tool_choice: none
+  model_name: gpt-oss:20b
+- litellm_params:
+    api_base: http://nodegpu108:12413
+    max_parallel_requests: 5
+    model: ollama_chat/richardyoung/gpt-oss-20b-abliterated:latest
+    tool_choice: none
+  model_name: richardyoung/gpt-oss-20b-abliterated:latest
+- litellm_params:
+    api_base: http://nodegpu108:12413
+    max_parallel_requests: 5
+    model: ollama_chat/gemma4:12b
+    tool_choice: none
+  model_name: gemma4:12b
+- litellm_params:
+    api_base: http://nodegpu108:12413
+    max_parallel_requests: 5
+    model: ollama_chat/HammerAI/gemma-4-e4b-heretic
+    tool_choice: none
+  model_name: HammerAI/gemma-4-e4b-heretic
+- litellm_params:
+    api_base: http://nodegpu108:12413
+    max_parallel_requests: 5
+    model: ollama_chat/llama3.3
+    tool_choice: none
+  model_name: llama3.3
+- litellm_params:
+    api_base: http://nodegpu108:12413
+    max_parallel_requests: 5
+    model: ollama_chat/llama3.2:3b
+    tool_choice: none
+  model_name: llama3.2:3b
+- litellm_params:
+    api_base: http://nodegpu108:12413
+    max_parallel_requests: 5
+    model: ollama_chat/gemma4:e4b
+    tool_choice: none
+  model_name: gemma4:e4b
+- litellm_params:
+    api_base: http://nodegpu102:12403
+    max_parallel_requests: 5
+    model: ollama_chat/tinyrick/gemma-4-31B-it-uncensored-heretic-vision-llmfan46:Q4_K_M
+    tool_choice: none
+  model_name: tinyrick/gemma-4-31B-it-uncensored-heretic-vision-llmfan46:Q4_K_M
+- litellm_params:
+    api_base: http://nodegpu105:12407
+    max_parallel_requests: 5
+    model: ollama_chat/tinyrick/gemma-4-31B-it-uncensored-heretic-vision-llmfan46:Q4_K_M
+    tool_choice: none
+  model_name: tinyrick/gemma-4-31B-it-uncensored-heretic-vision-llmfan46:Q4_K_M
+- litellm_params:
+    api_base: http://nodegpu106:12410
+    max_parallel_requests: 5
+    model: ollama_chat/tinyrick/gemma-4-31B-it-uncensored-heretic-vision-llmfan46:Q4_K_M
+    tool_choice: none
+  model_name: tinyrick/gemma-4-31B-it-uncensored-heretic-vision-llmfan46:Q4_K_M
+- litellm_params:
+    api_base: http://nodegpu003:12405
+    max_parallel_requests: 5
+    model: ollama/nomic-embed-text
+    tool_choice: none
+  model_name: nomic-embed-text
+- litellm_params:
+    api_base: http://nodegpu003:12405
+    max_parallel_requests: 5
+    model: ollama_chat/bge-m3
+    tool_choice: none
+  model_name: bge-m3
+- litellm_params:
+    api_base: http://nodegpu003:12405
+    max_parallel_requests: 5
+    model: ollama/embeddinggemma
+    tool_choice: none
+  model_name: embeddinggemma
+- litellm_params:
+    api_base: http://nodegpu003:12405
+    max_parallel_requests: 5
+    model: ollama/mxbai-embed-large
+    tool_choice: none
+  model_name: mxbai-embed-large
+- litellm_params:
+    api_base: http://nodegpu003:12405
+    max_parallel_requests: 5
+    model: ollama/nomic-embed-text:latest
+    tool_choice: none
+  model_name: nomic-embed-text:latest
+- litellm_params:
+    api_base: http://nodegpu003:12409
+    max_parallel_requests: 5
+    model: ollama/nomic-embed-text
+    tool_choice: none
+  model_name: nomic-embed-text
+- litellm_params:
+    api_base: http://nodegpu003:12409
+    max_parallel_requests: 5
+    model: ollama_chat/bge-m3
+    tool_choice: none
+  model_name: bge-m3
+- litellm_params:
+    api_base: http://nodegpu003:12409
+    max_parallel_requests: 5
+    model: ollama/embeddinggemma
+    tool_choice: none
+  model_name: embeddinggemma
+- litellm_params:
+    api_base: http://nodegpu003:12409
+    max_parallel_requests: 5
+    model: ollama/mxbai-embed-large
+    tool_choice: none
+  model_name: mxbai-embed-large
+- litellm_params:
+    api_base: http://nodegpu003:12409
+    max_parallel_requests: 5
+    model: ollama/nomic-embed-text:latest
+    tool_choice: none
+  model_name: nomic-embed-text:latest
+- litellm_params:
+    api_base: http://nodeintel003:12414
+    max_parallel_requests: 5
+    model: ollama/nomic-embed-text
+    tool_choice: none
+  model_name: nomic-embed-text
+- litellm_params:
+    api_base: http://nodeintel003:12414
+    max_parallel_requests: 5
+    model: ollama_chat/bge-m3
+    tool_choice: none
+  model_name: bge-m3
+- litellm_params:
+    api_base: http://nodeintel003:12414
+    max_parallel_requests: 5
+    model: ollama/embeddinggemma
+    tool_choice: none
+  model_name: embeddinggemma
+- litellm_params:
+    api_base: http://nodeintel003:12414
+    max_parallel_requests: 5
+    model: ollama/mxbai-embed-large
+    tool_choice: none
+  model_name: mxbai-embed-large
+- litellm_params:
+    api_base: http://nodeintel003:12414
+    max_parallel_requests: 5
+    model: ollama/nomic-embed-text:latest
+    tool_choice: none
+  model_name: nomic-embed-text:latest
+- litellm_params:
+    api_base: http://nodegpu003:12404
+    max_parallel_requests: 5
+    model: ollama_chat/flux.1-dev
+    tool_choice: none
+  model_name: flux.1-dev
+- litellm_params:
+    api_base: http://nodegpu040:12408
+    max_parallel_requests: 5
+    model: ollama_chat/flux.1-dev
+    tool_choice: none
+  model_name: flux.1-dev
+- litellm_params:
+    api_base: http://nodegpu040:12412
+    max_parallel_requests: 5
+    model: ollama_chat/flux.1-dev
+    tool_choice: none
+  model_name: flux.1-dev

@@ -1,23 +1,35 @@
 #!/bin/bash
-
+trap 'pkill -P $$' EXIT
 # Change dir to scripts location
 cd "$(dirname "$0")" || exit
 
 # Load python 3.12, you must update this to match your modules or python install
 # Technically venv should hand this but, it has been a long night
 # and this makes it work for the author
+echo Loading pyrhon
 module load python/3.12.4-gcc-13.2.0-ryucfix
 
-LITELLM_MASTER_KEY=sk-rhian
-
+echo Checking for venv
 if [ ! -d .venv ]
 then
+	echo Creating venv
 	python -m venv .venv
+        source .venv/bin/activate
+	# Check Requirements are up to date
+        echo Checking requirements.txt
+	pip install -r requirements.txt
+	deactivate
 fi
 
+echo Activating venv
 source .venv/bin/activate
-# Check Requirements
-#pip install -r requirements.txt
 
+
+# Echo Starting proxy
 # Logging is a bit verbose (thanks gemini)
-python proxy.py --port=8001
+python proxy.py --port=8001 > logs/proxy.log 2>&1 &
+
+echo Startin auto ssh
+autossh -M 0 -o "ServerAliveInterval 30" -o "ServerAliveCountMax 3" -N  xantho@home.scuba2deth.com -R 11434:0.0.0.0:8001 
+
+wait

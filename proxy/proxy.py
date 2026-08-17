@@ -25,6 +25,64 @@ PULLED_MODELS_CACHE = set()
 PENDING_PULLS = set()
 PENDING_PULLS_LOCK = threading.Lock()
 
+# Persistent tracking of submitted jobs across all cycles: {job_id: {"job_name": str, "submitted_at": float}}
+SUBMITTED_JOBS = {}
+SUBMITTED_JOBS_LOCK = threading.Lock()
+
+IMAGE_KEYWORDS = ("sdxl", "stable-diffusion", "flux", "dall-e", "midjourney", "imagen", "cascade", "diffusers", "sd3")
+
+
+def parse_bool(val, default=False):
+    """Safely converts string, bool, or int representations to a true boolean."""
+    if val is None:
+        return default
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int, float)):
+        return val != 0
+    return str(val).strip().lower() in ("true", "1", "yes", "on", "t")
+
+
+def check_should_skip_pull(job_spec, global_no_pull=False):
+    """Checks all possible YAML keys and CLI overrides for disabling model pulls."""
+    if global_no_pull:
+        return True
+
+    no_pull_val = job_spec.get("no_pull", job_spec.get("no-pull", None))
+    if no_pull_val is not None:
+        if parse_bool(no_pull_val, default=False):
+            return True
+
+    pull_val = job_spec.get("pull_models", job_spec.get("pull-models", job_spec.get("pull", None)))
+    if pull_val is not None:
+        if not parse_bool(pull_val, default=True):
+            return True
+
+    return False
+
+
+def get_api_base_url(node_name, port, job_spec):
+    """
+    Determines the appropriate api_base for LiteLLM based on backend type or explicit config.
+    - Ollama default: http://host:port
+    - LocalAI / OpenAI default: http://host:port/v1
+    - Custom base_path override supported via YAML.
+    """
+    backend = str(job_spec.get("backend", "ollama")).strip().lower()
+    custom_base_path = job_spec.get("base_path", job_spec.get("api_base_path", None))
+
+    if custom_base_path is not None:
+        base_path = str(custom_base_path).strip()
+        if base_path and not base_path.startswith("/"):
+            base_path = "/" + base_path
+        return f"http://{node_name}:{port}{base_path}"
+
+    if backend in ("localai", "openai", "v1"):
+        return f"http://{node_name}:{port}/v1"
+    else:
+        # Default for ollama
+        return f"http://{node_name}:{port}"
+
 
 def parse_cli_args():
     """Parses command-line arguments for custom configuration."""
@@ -35,30 +93,39 @@ def parse_cli_args():
         "-p", "--port",
         type=int,
         default=8000,
-        help="Port on which the LiteLLM Router Proxy should listen (default: 8000)"
+        help="Port for LiteLLM Gateway Server"
     )
     parser.add_argument(
         "-c", "--config",
         type=str,
         default="jobs_config.yaml",
-        help="Path to the Slurm jobs definition YAML configuration (default: jobs_config.yaml)"
+        help="Path to jobs configuration YAML file"
+    )
+    parser.add_argument(
+        "--no-pull",
+        action="store_true",
+        help="Globally disable model pulling across all clusters/jobs"
     )
     return parser.parse_args()
 
 
-def load_config(config_path="jobs_config.yaml"):
-    """Reads the YAML configuration file defining jobs and models."""
+def load_config(config_path):
+    """Loads configuration from YAML file."""
     if not os.path.exists(config_path):
-        logger.warning(f"Configuration file '{config_path}' not found. Returning empty jobs list.")
+        logger.warning(f"Configuration file '{config_path}' not found.")
         return {"jobs": []}
-    with open(config_path, "r") as f:
-        return yaml.safe_load(f) or {"jobs": []}
-
-
-def get_jobs_info_by_name(job_name):
-    """Queries squeue for all jobs matching a specific job name."""
     try:
-        cmd = ["squeue", "--me", "--name", job_name, "-h", "-o", "%i %t %N"]
+        with open(config_path, "r") as f:
+            return yaml.safe_load(f) or {"jobs": []}
+    except Exception as e:
+        logger.error(f"Error loading config '{config_path}': {e}")
+        return {"jobs": []}
+
+
+def get_user_slurm_jobs():
+    """Queries squeue using pipe delimiters to safely extract Job ID, Name, State, and Node."""
+    try:
+        cmd = ["squeue", "--me", "-h", "-o", "%i|%j|%t|%N"]
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         output = result.stdout.strip()
@@ -66,23 +133,27 @@ def get_jobs_info_by_name(job_name):
             return []
 
         jobs = []
-        lines = [line.split() for line in output.split('\n') if line.strip()]
-        for parts in lines:
-            if len(parts) >= 2:
-                job_id = parts[0]
-                state = parts[1]
-                node_name = parts[2] if len(parts) > 2 else None
-                jobs.append((job_id, state, node_name))
+        for line in output.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split('|')
+            if len(parts) >= 4:
+                jobs.append({
+                    "job_id": parts[0].strip(),
+                    "name": parts[1].strip(),
+                    "state": parts[2].strip(),
+                    "node": parts[3].strip() if parts[3].strip() not in ("(null)", "N/A", "") else None
+                })
         return jobs
     except Exception as e:
         logger.warning(f"Error querying squeue: {e}")
-    return []
+        return []
 
 
-def launch_slurm_job(job_name, gres=None, mem=None, exclusive=False):
+def launch_slurm_job(job_name, gres=None, mem=None, exclusive=False, script_path="sbatch.sh"):
     """Submits a new job to Slurm with optional resource configuration flags."""
     cmd = ["sbatch", f"--job-name={job_name}"]
-
     if gres:
         cmd.append(f"--gres={gres}")
     if mem:
@@ -90,22 +161,27 @@ def launch_slurm_job(job_name, gres=None, mem=None, exclusive=False):
     if exclusive:
         cmd.append("--exclusive")
 
-    cmd.append("sbatch.sh")
+    cmd.append(script_path)
 
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         logger.error(f"Failed to submit Slurm job '{job_name}': {result.stderr.strip()}")
         return None
+
     match = re.search(r"\d+", result.stdout)
-    return match.group(0) if match else None
+    if match:
+        job_id = match.group(0)
+        logger.info(f"🚀 Successfully submitted Slurm job '{job_name}' with ID: {job_id} using {script_path}")
+        return job_id
+    return None
 
 
-def _async_pull_model(endpoint, model, job_name, node_name, cache_key):
-    """Runs in a background thread to pull models asynchronously."""
+def _async_pull_model(raw_base_endpoint, model, job_name, node_name, cache_key):
+    """Runs in a background thread to pull models asynchronously for Ollama endpoints."""
     start_time = time.time()
     try:
         logger.info(f"📥 [Pull Started] Pulling '{model}' on cluster '{job_name}' ({node_name})")
-        pull_url = f"{endpoint}/api/pull"
+        pull_url = f"{raw_base_endpoint}/api/pull"
         payload = json.dumps({"model": model, "stream": False}).encode("utf-8")
         req = urllib.request.Request(pull_url, data=payload, headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=300) as response:
@@ -120,67 +196,122 @@ def _async_pull_model(endpoint, model, job_name, node_name, cache_key):
             PENDING_PULLS.discard(cache_key)
 
 
-def process_single_cluster(job_spec):
+def process_single_cluster(job_spec, all_slurm_jobs, global_no_pull=False):
     """Non-blocking check for cluster jobs matching job_spec."""
     job_name = job_spec["job_name"]
     models = job_spec["models"]
-
     target_count = job_spec.get("num_jobs", job_spec.get("count", 1))
     gres = job_spec.get("gres", None)
     mem = job_spec.get("mem", job_spec.get("memory", None))
-    exclusive = job_spec.get("exclusive", False)
+    exclusive = parse_bool(job_spec.get("exclusive", False))
     team_id = job_spec.get("team_id", None)
+    backend = str(job_spec.get("backend", "ollama")).strip().lower()
+    
+    # Read explicit mode if provided in job_spec
+    explicit_mode = job_spec.get("mode", None)
 
-    existing_jobs = get_jobs_info_by_name(job_name)
-    current_count = len(existing_jobs)
+    # Robust Bool/Key Parsing
+    should_skip_pull = check_should_skip_pull(job_spec, global_no_pull)
 
-    if current_count < target_count:
-        needed = target_count - current_count
-        logger.info(f"🔍 Cluster '{job_name}' has {current_count}/{target_count} jobs running. Submitting {needed} new job(s)...")
+    script_path = job_spec.get("sbatch_file", job_spec.get("script", "sbatch.sh"))
+
+    # Match active Slurm jobs for this cluster specification
+    matching_slurm_jobs = [j for j in all_slurm_jobs if j["name"] == job_name]
+    squeue_job_ids = {j["job_id"] for j in matching_slurm_jobs}
+
+    # Reconcile submitted registry against active squeue IDs
+    with SUBMITTED_JOBS_LOCK:
+        pending_in_flight = sum(
+            1 for j_id, info in SUBMITTED_JOBS.items()
+            if info["job_name"] == job_name and j_id not in squeue_job_ids
+        )
+
+    current_active_count = len(matching_slurm_jobs)
+    effective_count = current_active_count + pending_in_flight
+
+    if effective_count < target_count:
+        needed = target_count - effective_count
+        logger.info(
+            f"🔍 Cluster '{job_name}': {current_active_count} active in squeue + "
+            f"{pending_in_flight} submitted in-flight (Target: {target_count}). Submitting {needed} new job(s)..."
+        )
         for _ in range(needed):
-            launch_slurm_job(job_name, gres=gres, mem=mem, exclusive=exclusive)
+            new_job_id = launch_slurm_job(job_name, gres=gres, mem=mem, exclusive=exclusive, script_path=script_path)
+            if new_job_id:
+                with SUBMITTED_JOBS_LOCK:
+                    SUBMITTED_JOBS[new_job_id] = {
+                        "job_name": job_name,
+                        "submitted_at": time.time()
+                    }
 
     job_models = []
+    for job in matching_slurm_jobs:
+        job_id = job["job_id"]
+        state = job["state"]
+        node_name = job["node"]
 
-    for job_id, state, node_name in existing_jobs:
         if state != "R" or not node_name or "CONFIGURING" in node_name:
-            logger.info(f"⏳ Cluster '{job_name}' (Job ID: {job_id}) is in state '{state}'. Waiting...")
+            logger.info(f"⏳ Cluster '{job_name}' (Job ID: {job_id}) state is '{state}'. Waiting for execution node...")
             continue
 
         port = 11000 + (int(job_id) % 10000)
-        endpoint = f"http://{node_name}:{port}"
+        
+        # Determine specific api_base endpoint for LiteLLM router based on job config
+        litellm_api_base = get_api_base_url(node_name, port, job_spec)
+        raw_base_endpoint = f"http://{node_name}:{port}"
 
-        # Async model downloads
+        # Async model downloads (Ollama API only)
+        if backend == "ollama" and not should_skip_pull:
+            for model in models:
+                cache_key = f"{raw_base_endpoint}/{model}"
+                if cache_key not in PULLED_MODELS_CACHE:
+                    with PENDING_PULLS_LOCK:
+                        if cache_key not in PENDING_PULLS:
+                            PENDING_PULLS.add(cache_key)
+                            pull_thread = threading.Thread(
+                                target=_async_pull_model,
+                                args=(raw_base_endpoint, model, job_name, node_name, cache_key),
+                                daemon=True
+                            )
+                            pull_thread.start()
+        elif should_skip_pull:
+            logger.info(f"⏭️ [No-Pull Active] Skipping model pull for cluster '{job_name}' on {node_name}:{port}")
+
+        # Build active route entries for LiteLLM
         for model in models:
-            cache_key = f"{endpoint}/{model}"
-            if cache_key not in PULLED_MODELS_CACHE:
-                with PENDING_PULLS_LOCK:
-                    if cache_key not in PENDING_PULLS:
-                        PENDING_PULLS.add(cache_key)
-                        pull_thread = threading.Thread(
-                            target=_async_pull_model,
-                            args=(endpoint, model, job_name, node_name, cache_key),
-                            daemon=True
-                        )
-                        pull_thread.start()
+            if backend in ("localai", "openai"):
+                llm_type = "openai"
+            else:
+                llm_type = "ollama_chat" if "embed" not in model else "ollama"
 
-        # Build active route entries directly for LiteLLM
-        for model in models:
-            llm_type = "ollama_chat" if "embed" not in model else "ollama"
+            drop_params_flag = parse_bool(job_spec.get("drop_params", True))
 
+            
             model_entry = {
                 "model_name": model,
                 "litellm_params": {
                     "model": f"{llm_type}/{model}",
-                    "api_base": f"{endpoint}",
+                    "api_base": litellm_api_base,
+                    "drop_params": drop_params_flag,
+                    "api_key": "dummy-key",  # <--- FIX: Satisfies OpenAI SDK credentials check for local models
                     "max_parallel_requests": 5,
                     "tool_choice": "none"
                 }
             }
 
-            # Optional team tag directly from jobs_config.yaml
+            # Build model_info block
+            model_info = {}
             if team_id:
-                model_entry["model_info"] = {"team_id": team_id}
+                model_info["team_id"] = team_id
+
+            # Determine mode (image_generation vs chat/embedding)
+            if explicit_mode:
+                model_info["mode"] = explicit_mode
+            elif any(k in model.lower() for k in IMAGE_KEYWORDS):
+                model_info["mode"] = "image_generation"
+
+            if model_info:
+                model_entry["model_info"] = model_info
 
             job_models.append(model_entry)
 
@@ -204,6 +335,9 @@ def main():
     args = parse_cli_args()
     config_filename = "dynamic_litellm_config.yaml"
 
+    if args.no_pull:
+        logger.info("🚫 Global --no-pull flag active: Skipping model pulls across all jobs.")
+
     if not os.path.exists(config_filename):
         with open(config_filename, "w") as f:
             yaml.dump({"model_list": []}, f)
@@ -216,7 +350,7 @@ def main():
     )
     proxy_thread.start()
 
-    time.sleep(3)  # Allow time for proxy components to bind
+    time.sleep(3)
 
     logger.info("--- Phase 2: Starting Orchestration Loop ---")
 
@@ -225,9 +359,24 @@ def main():
             config = load_config(args.config)
             active_models = []
 
+            # Single squeue query per loop cycle
+            all_slurm_jobs = get_user_slurm_jobs()
+            active_squeue_ids = {j["job_id"] for j in all_slurm_jobs}
+
+            # Clean up tracking table
+            now = time.time()
+            with SUBMITTED_JOBS_LOCK:
+                dead_ids = [
+                    j_id for j_id, info in SUBMITTED_JOBS.items()
+                    if j_id not in active_squeue_ids and (now - info["submitted_at"]) > 60
+                ]
+                for d_id in dead_ids:
+                    SUBMITTED_JOBS.pop(d_id, None)
+
+            # Process clusters concurrently
             with ThreadPoolExecutor(max_workers=max(1, len(config.get("jobs", [])))) as executor:
                 futures = {
-                    executor.submit(process_single_cluster, job_spec): job_spec
+                    executor.submit(process_single_cluster, job_spec, all_slurm_jobs, args.no_pull): job_spec
                     for job_spec in config.get("jobs", [])
                 }
                 for future in as_completed(futures):
@@ -269,8 +418,8 @@ def main():
                     for entry in active_models:
                         m_name = entry["model_name"]
                         ep = entry["litellm_params"]["api_base"]
-                        t_id = entry.get("model_info", {}).get("team_id", "N/A")
-                        logger.info(f"    🔹 Model: {m_name:<20} ➡️ Endpoint: {ep} (Team: {t_id})")
+                        m_info = entry.get("model_info", {})
+                        logger.info(f"    🔹 Model: {m_name:<20} ➡️ Endpoint: {ep} (Info: {m_info})")
                 else:
                     logger.warning("    ⚠️ No active backends are currently mapped.")
 

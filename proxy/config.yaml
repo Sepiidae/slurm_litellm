@@ -1,23 +1,2 @@
-#models:
-#  llama3:
-#    max_wait_time_sec: 5.0
-#    sbatch_command: "sbatch run_llama3.sh"
-# mistral:
-#    max_wait_time_sec: 10.0
-#    sbatch_command: "sbatch run_mistral.sh"
-#
-jobs:
-  - job_name: "bulk-llm"
-    models:
-      - nomic-embed-text 
-      - bge-m3 
-      - mxbai-embed-large 
-      - text-embedding-3-small 
-      - text-embedding-3-large 
-      - BAAI/bge-large-en-v1.5 
-      - sentence-transformers/all-mpnet-base-v2
-      - HammerAI/gemma-4-e4b-heretic
-      - llama3.3
-  - job_name: "big-llm"
-    models:
-      - tinyrick/gemma-4-31B-it-uncensored-heretic-vision-llmfan46:Q4_K_M
+litellm_settings:
+          drop_params: true

@@ -9,8 +9,10 @@
 jobs:
   - job_name: "bulk-llm"
     num_jobs: 1
-    exclusive: true
-    gres: gpu:2
+    exclusive: false
+    no_pull: false
+    backend: "ollama"
+    gres: gpu:a100:1
     models:
       - tinyllama
       - nomic-embed-text 
@@ -18,21 +20,38 @@ jobs:
       - embeddinggemma
       - mxbai-embed-large 
       - nomic-embed-text:latest
-      - llama3.2
-      - llama3.1
+      - gpt-oss:20b
   - job_name: "big-gemma"
     num_jobs: 1
-    gres: gpu:a100:3
-    memory: 0
-    exclusive: true
-    models:
-      - tinyrick/gemma-4-31B-it-uncensored-heretic-vision-llmfan46:Q4_K_M
-  - job_name: "big-llama3.3"
-    num_jobs: 1
-    memory: 0
     gres: gpu:v100:4
+    no_pull: false
+    backend: "ollama"
+    memory: 0
     exclusive: true
     models:
-      - HammerAI/gemma-4-e4b-heretic
-      - llama3.3
-      - huihui_ai/llama3.3-abliterated:latest
+            - juilpark/gemma-4-31B-it-uncensored-heretic:q4_k_m
+            - tinyrick/gemma-4-31B-it-uncensored-heretic-vision-llmfan46:Q4_K_M
+        #  - job_name: "big-llama3.3"
+        #    num_jobs: 0
+        #    memory: 0
+        #    gres: gpu:v100:4
+        #    exclusive: true
+        #    no_pull: false
+        #    backend: "ollama"
+        #    models:
+        #      - HammerAI/gemma-4-e4b-heretic
+        #      - gpt-oss:20b
+        #      - muse-glimmer:latest
+  - job_name: "localai"
+    num_jobs: 1
+    sbatch_file: "sbatch-localai.sh"
+    memory: 96000 
+    gres: gpu:a100:1
+    mode: "image_generation"  # <--- Injects model_info: { mode: "image_generation" }
+    exclusive: false
+    drop_params: true  # <--- Enable per job specification
+    no_pull: true
+    backend: "localai"
+    models:
+      - flux.1-dev
+      - versatillama-llama-3.2-3b-instruct-abliterated
