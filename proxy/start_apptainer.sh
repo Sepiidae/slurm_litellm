@@ -11,6 +11,7 @@ export APPTAINER_TMPDIR=~/scratch/image/tmp
 
 cd ~/scratch/image/
 
+
 apptainer run --nv \
   --bind images:/generated \
   --bind data:/data \

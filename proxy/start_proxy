@@ -1,4 +1,8 @@
 #!/bin/bash
+#SBATCH -c 4
+#SBATCH --mem 4G
+#SBATCH -p shortq7
+
 trap 'pkill -P $$' EXIT
 # Change dir to scripts location
 cd "$(dirname "$0")" || exit
@@ -27,9 +31,19 @@ source .venv/bin/activate
 
 # Echo Starting proxy
 # Logging is a bit verbose (thanks gemini)
-python proxy.py --port=8001 > logs/proxy.log 2>&1 &
+if [ "$SLURM_JOB_ID" == "" ]
+then
+	export SLURM_JOB_ID=1000
+fi
 
-echo Startin auto ssh
-autossh -M 0 -o "ServerAliveInterval 30" -o "ServerAliveCountMax 3" -N  xantho@home.scuba2deth.com -R 11434:0.0.0.0:8001 
+PORT=$((11000 + ($SLURM_JOB_ID % 10000)))
+
+python proxy.py --port=$PORT > logs/proxy.log 2>&1 &
+
+echo Starting auto ssh
+if [ "$AUTO_SSH" == "true" ]
+then
+autossh -M 0 -o "ServerAliveInterval 30" -o "ServerAliveCountMax 3" -N  xantho@home.scuba2deth.com -R 11434:0.0.0.0:$PORT
+fi
 
 wait

@@ -54,4 +54,5 @@ jobs:
     backend: "localai"
     models:
       - flux.1-dev
+      - Z-Image-Turbo
       - versatillama-llama-3.2-3b-instruct-abliterated

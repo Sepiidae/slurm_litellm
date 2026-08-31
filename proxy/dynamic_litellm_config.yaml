@@ -1,62 +1,6 @@
 model_list:
 - litellm_params:
-    api_base: http://nodegpu003:14932
-    api_key: dummy-key
-    drop_params: true
-    max_parallel_requests: 5
-    model: ollama_chat/tinyllama
-    tool_choice: none
-  model_name: tinyllama
-- litellm_params:
-    api_base: http://nodegpu003:14932
-    api_key: dummy-key
-    drop_params: true
-    max_parallel_requests: 5
-    model: ollama/nomic-embed-text
-    tool_choice: none
-  model_name: nomic-embed-text
-- litellm_params:
-    api_base: http://nodegpu003:14932
-    api_key: dummy-key
-    drop_params: true
-    max_parallel_requests: 5
-    model: ollama_chat/bge-m3
-    tool_choice: none
-  model_name: bge-m3
-- litellm_params:
-    api_base: http://nodegpu003:14932
-    api_key: dummy-key
-    drop_params: true
-    max_parallel_requests: 5
-    model: ollama/embeddinggemma
-    tool_choice: none
-  model_name: embeddinggemma
-- litellm_params:
-    api_base: http://nodegpu003:14932
-    api_key: dummy-key
-    drop_params: true
-    max_parallel_requests: 5
-    model: ollama/mxbai-embed-large
-    tool_choice: none
-  model_name: mxbai-embed-large
-- litellm_params:
-    api_base: http://nodegpu003:14932
-    api_key: dummy-key
-    drop_params: true
-    max_parallel_requests: 5
-    model: ollama/nomic-embed-text:latest
-    tool_choice: none
-  model_name: nomic-embed-text:latest
-- litellm_params:
-    api_base: http://nodegpu003:14932
-    api_key: dummy-key
-    drop_params: true
-    max_parallel_requests: 5
-    model: ollama_chat/gpt-oss:20b
-    tool_choice: none
-  model_name: gpt-oss:20b
-- litellm_params:
-    api_base: http://nodegpu104:14933
+    api_base: http://nodegpu102:19901
     api_key: dummy-key
     drop_params: true
     max_parallel_requests: 5
@@ -64,7 +8,7 @@ model_list:
     tool_choice: none
   model_name: juilpark/gemma-4-31B-it-uncensored-heretic:q4_k_m
 - litellm_params:
-    api_base: http://nodegpu104:14933
+    api_base: http://nodegpu102:19901
     api_key: dummy-key
     drop_params: true
     max_parallel_requests: 5
@@ -72,7 +16,63 @@ model_list:
     tool_choice: none
   model_name: tinyrick/gemma-4-31B-it-uncensored-heretic-vision-llmfan46:Q4_K_M
 - litellm_params:
-    api_base: http://nodegpu039:14934/v1
+    api_base: http://nodegpu003:19906
+    api_key: dummy-key
+    drop_params: true
+    max_parallel_requests: 5
+    model: ollama_chat/tinyllama
+    tool_choice: none
+  model_name: tinyllama
+- litellm_params:
+    api_base: http://nodegpu003:19906
+    api_key: dummy-key
+    drop_params: true
+    max_parallel_requests: 5
+    model: ollama/nomic-embed-text
+    tool_choice: none
+  model_name: nomic-embed-text
+- litellm_params:
+    api_base: http://nodegpu003:19906
+    api_key: dummy-key
+    drop_params: true
+    max_parallel_requests: 5
+    model: ollama_chat/bge-m3
+    tool_choice: none
+  model_name: bge-m3
+- litellm_params:
+    api_base: http://nodegpu003:19906
+    api_key: dummy-key
+    drop_params: true
+    max_parallel_requests: 5
+    model: ollama/embeddinggemma
+    tool_choice: none
+  model_name: embeddinggemma
+- litellm_params:
+    api_base: http://nodegpu003:19906
+    api_key: dummy-key
+    drop_params: true
+    max_parallel_requests: 5
+    model: ollama/mxbai-embed-large
+    tool_choice: none
+  model_name: mxbai-embed-large
+- litellm_params:
+    api_base: http://nodegpu003:19906
+    api_key: dummy-key
+    drop_params: true
+    max_parallel_requests: 5
+    model: ollama/nomic-embed-text:latest
+    tool_choice: none
+  model_name: nomic-embed-text:latest
+- litellm_params:
+    api_base: http://nodegpu003:19906
+    api_key: dummy-key
+    drop_params: true
+    max_parallel_requests: 5
+    model: ollama_chat/gpt-oss:20b
+    tool_choice: none
+  model_name: gpt-oss:20b
+- litellm_params:
+    api_base: http://nodegpu039:19897/v1
     api_key: dummy-key
     drop_params: true
     max_parallel_requests: 5
@@ -82,7 +82,17 @@ model_list:
     mode: image_generation
   model_name: flux.1-dev
 - litellm_params:
-    api_base: http://nodegpu039:14934/v1
+    api_base: http://nodegpu039:19897/v1
+    api_key: dummy-key
+    drop_params: true
+    max_parallel_requests: 5
+    model: openai/Z-Image-Turbo
+    tool_choice: none
+  model_info:
+    mode: image_generation
+  model_name: Z-Image-Turbo
+- litellm_params:
+    api_base: http://nodegpu039:19897/v1
     api_key: dummy-key
     drop_params: true
     max_parallel_requests: 5

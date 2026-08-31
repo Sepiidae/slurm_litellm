@@ -129,8 +129,8 @@ def get_user_slurm_jobs():
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         if result.returncode != 0:
-            logger.error(f"squeue command failed with exit code {result.returncode}: {result.stderr.strip()}")
-            return None  # Signal query failure instead of empty list
+            logger.error(f"❌ squeue query failed with exit code {result.returncode}: {result.stderr.strip()}")
+            return None  # Return None to signal an error rather than empty list
 
         output = result.stdout.strip()
         if not output:
@@ -155,13 +155,7 @@ def get_user_slurm_jobs():
         return None  # Return None so orchestrator skips reconciliation
 
 
-
 def launch_slurm_job(job_name, gres=None, mem=None, exclusive=False, script_path="sbatch.sh"):
-    """Non-blocking check for cluster jobs matching job_spec."""
-    if all_slurm_jobs is None:
-        logger.warning(f"Skipping cluster check for '{job_spec.get('job_name')}' due to squeue query failure.")
-        return []
-    
     """Submits a new job to Slurm with optional resource configuration flags."""
     cmd = ["sbatch", f"--job-name={job_name}"]
     if gres:
@@ -208,6 +202,10 @@ def _async_pull_model(raw_base_endpoint, model, job_name, node_name, cache_key):
 
 def process_single_cluster(job_spec, all_slurm_jobs, global_no_pull=False):
     """Non-blocking check for cluster jobs matching job_spec."""
+    if all_slurm_jobs is None:
+        logger.warning(f"Skipping cluster reconciliation for '{job_spec.get('job_name')}' due to squeue error.")
+        return []
+
     job_name = job_spec["job_name"]
     models = job_spec["models"]
     target_count = job_spec.get("num_jobs", job_spec.get("count", 1))
@@ -216,7 +214,7 @@ def process_single_cluster(job_spec, all_slurm_jobs, global_no_pull=False):
     exclusive = parse_bool(job_spec.get("exclusive", False))
     team_id = job_spec.get("team_id", None)
     backend = str(job_spec.get("backend", "ollama")).strip().lower()
-    
+
     # Read explicit mode if provided in job_spec
     explicit_mode = job_spec.get("mode", None)
 
@@ -265,7 +263,7 @@ def process_single_cluster(job_spec, all_slurm_jobs, global_no_pull=False):
             continue
 
         port = 11000 + (int(job_id) % 10000)
-        
+
         # Determine specific api_base endpoint for LiteLLM router based on job config
         litellm_api_base = get_api_base_url(node_name, port, job_spec)
         raw_base_endpoint = f"http://{node_name}:{port}"
@@ -296,14 +294,13 @@ def process_single_cluster(job_spec, all_slurm_jobs, global_no_pull=False):
 
             drop_params_flag = parse_bool(job_spec.get("drop_params", True))
 
-            
             model_entry = {
                 "model_name": model,
                 "litellm_params": {
                     "model": f"{llm_type}/{model}",
                     "api_base": litellm_api_base,
                     "drop_params": drop_params_flag,
-                    "api_key": "dummy-key",  # <--- FIX: Satisfies OpenAI SDK credentials check for local models
+                    "api_key": "dummy-key",
                     "max_parallel_requests": 5,
                     "tool_choice": "none"
                 }
@@ -342,7 +339,7 @@ def start_litellm_proxy(config_filename, port=8000):
 
 
 def main():
-    args = parse_cli_args()
+    args = parse_cli_args()  # Defined safely at entrypoint
     config_filename = "dynamic_litellm_config.yaml"
 
     if args.no_pull:
@@ -364,7 +361,7 @@ def main():
 
     logger.info("--- Phase 2: Starting Orchestration Loop ---")
 
-while True:
+    while True:
         try:
             config = load_config(args.config)
             active_models = []
@@ -372,14 +369,15 @@ while True:
             # Single squeue query per loop cycle
             all_slurm_jobs = get_user_slurm_jobs()
             
+            # Guard: If squeue failed, skip this cycle to avoid false job creation
             if all_slurm_jobs is None:
-                logger.warning("⚠️ Skipping cycle: Unable to reach Slurm/squeue.")
+                logger.warning("⚠️ Slurm query failed. Skipping orchestration reconciliation for this cycle.")
                 time.sleep(5)
                 continue
 
             active_squeue_ids = {j["job_id"] for j in all_slurm_jobs}
 
-            # Clean up tracking table (only runs when squeue successfully returned)
+            # Clean up tracking table
             now = time.time()
             with SUBMITTED_JOBS_LOCK:
                 dead_ids = [
@@ -389,7 +387,6 @@ while True:
                 for d_id in dead_ids:
                     SUBMITTED_JOBS.pop(d_id, None)
 
-            # Process clusters concurrently...
             # Process clusters concurrently
             with ThreadPoolExecutor(max_workers=max(1, len(config.get("jobs", [])))) as executor:
                 futures = {
