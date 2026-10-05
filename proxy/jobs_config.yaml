@@ -21,9 +21,10 @@ jobs:
       - mxbai-embed-large 
       - nomic-embed-text:latest
       - gpt-oss:20b
+      - gemma4
   - job_name: "big-gemma"
     num_jobs: 1
-    gres: gpu:v100:4
+    gres: gpu:a100:3
     no_pull: false
     backend: "ollama"
     memory: 0
