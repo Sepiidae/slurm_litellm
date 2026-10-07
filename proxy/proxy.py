@@ -200,6 +200,109 @@ def _async_pull_model(raw_base_endpoint, model, job_name, node_name, cache_key):
             PENDING_PULLS.discard(cache_key)
 
 
+def get_model_name(model_spec):
+    """
+    Normalizes a model specification to its model-name string.
+
+    A model spec may be either:
+      - a plain string (the model name), or
+      - a dict with a 'name' (or 'model') key.
+
+    Returns the stripped model-name string (empty string if unresolvable).
+    """
+    if isinstance(model_spec, dict):
+        return str(model_spec.get("name", model_spec.get("model", ""))).strip()
+    return str(model_spec).strip()
+
+
+def build_model_entry(model_spec, job_spec, litellm_api_base, backend):
+    """
+    Builds a single LiteLLM route entry, honoring optional per-model options.
+
+    model_spec may be either:
+      - a plain string (the model name), or
+      - a dict with a 'name' (or 'model') key plus optional per-model overrides.
+
+    Supported per-model options (fall back to job-level defaults when omitted):
+      - name / model              : the model identifier (required for dict form)
+      - max_parallel_requests
+      - tool_choice
+      - drop_params
+      - api_key
+      - any additional keys are forwarded verbatim into litellm_params
+        (e.g. timeout, max_retries, temperature, context_window, ...)
+
+    Returns the model_entry dict, or None if the spec is invalid.
+    """
+    per_model = {}
+    if isinstance(model_spec, dict):
+        model = model_spec.get("name", model_spec.get("model"))
+        if model is None:
+            logger.warning(f"⚠️ Model spec missing 'name': {model_spec}. Skipping.")
+            return None
+        # Collect per-model overrides (everything except the name aliases)
+        per_model = {k: v for k, v in model_spec.items() if k not in ("name", "model")}
+    else:
+        model = model_spec
+
+    model = str(model).strip()
+    if not model:
+        logger.warning(f"⚠️ Empty model spec: {model_spec}. Skipping.")
+        return None
+
+    # Determine LiteLLM model type prefix
+    if backend in ("localai", "openai"):
+        llm_type = "openai"
+    else:
+        llm_type = "ollama_chat" if "embed" not in model else "ollama"
+
+    # Job-level defaults
+    default_drop_params = parse_bool(job_spec.get("drop_params", True))
+    default_max_parallel = job_spec.get("max_parallel_requests", 5)
+    default_tool_choice = job_spec.get("tool_choice", "none")
+    default_api_key = job_spec.get("api_key", "dummy-key")
+
+    litellm_params = {
+        "model": f"{llm_type}/{model}",
+        "api_base": litellm_api_base,
+        "drop_params": parse_bool(per_model.get("drop_params", default_drop_params)),
+        "api_key": per_model.get("api_key", default_api_key),
+        "max_parallel_requests": per_model.get("max_parallel_requests", default_max_parallel),
+        "tool_choice": per_model.get("tool_choice", default_tool_choice),
+    }
+
+    # Forward any additional per-model keys verbatim into litellm_params
+    reserved = {"name", "model", "drop_params", "api_key", "max_parallel_requests", "tool_choice"}
+    for key, value in per_model.items():
+        if key not in reserved:
+            litellm_params[key] = value
+
+    model_entry = {
+        "model_name": model,
+        "litellm_params": litellm_params,
+    }
+
+    # Build model_info block (team_id / mode)
+    model_info = {}
+    team_id = job_spec.get("team_id", None)
+    if team_id:
+        model_info["team_id"] = team_id
+
+    explicit_mode = job_spec.get("mode", None)
+    # Per-model mode override takes precedence over the job-level mode
+    if "mode" in per_model and per_model["mode"] is not None:
+        model_info["mode"] = per_model["mode"]
+    elif explicit_mode:
+        model_info["mode"] = explicit_mode
+    elif any(k in model.lower() for k in IMAGE_KEYWORDS):
+        model_info["mode"] = "image_generation"
+
+    if model_info:
+        model_entry["model_info"] = model_info
+
+    return model_entry
+
+
 def process_single_cluster(job_spec, all_slurm_jobs, global_no_pull=False):
     """Non-blocking check for cluster jobs matching job_spec."""
     if all_slurm_jobs is None:
@@ -270,7 +373,10 @@ def process_single_cluster(job_spec, all_slurm_jobs, global_no_pull=False):
 
         # Async model downloads (Ollama API only)
         if backend == "ollama" and not should_skip_pull:
-            for model in models:
+            for model_spec in models:
+                model = get_model_name(model_spec)
+                if not model:
+                    continue
                 cache_key = f"{raw_base_endpoint}/{model}"
                 if cache_key not in PULLED_MODELS_CACHE:
                     with PENDING_PULLS_LOCK:
@@ -286,41 +392,12 @@ def process_single_cluster(job_spec, all_slurm_jobs, global_no_pull=False):
             logger.info(f"⏭️ [No-Pull Active] Skipping model pull for cluster '{job_name}' on {node_name}:{port}")
 
         # Build active route entries for LiteLLM
-        for model in models:
-            if backend in ("localai", "openai"):
-                llm_type = "openai"
-            else:
-                llm_type = "ollama_chat" if "embed" not in model else "ollama"
-
-            drop_params_flag = parse_bool(job_spec.get("drop_params", True))
-
-            model_entry = {
-                "model_name": model,
-                "litellm_params": {
-                    "model": f"{llm_type}/{model}",
-                    "api_base": litellm_api_base,
-                    "drop_params": drop_params_flag,
-                    "api_key": "dummy-key",
-                    "max_parallel_requests": 5,
-                    "tool_choice": "none"
-                }
-            }
-
-            # Build model_info block
-            model_info = {}
-            if team_id:
-                model_info["team_id"] = team_id
-
-            # Determine mode (image_generation vs chat/embedding)
-            if explicit_mode:
-                model_info["mode"] = explicit_mode
-            elif any(k in model.lower() for k in IMAGE_KEYWORDS):
-                model_info["mode"] = "image_generation"
-
-            if model_info:
-                model_entry["model_info"] = model_info
-
-            job_models.append(model_entry)
+        for model_spec in models:
+            model_entry = build_model_entry(
+                model_spec, job_spec, litellm_api_base, backend
+            )
+            if model_entry:
+                job_models.append(model_entry)
 
     return job_models
 
