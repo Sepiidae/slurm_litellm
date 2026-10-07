@@ -7,12 +7,25 @@
 #    sbatch_command: "sbatch run_mistral.sh"
 #
 jobs:
+  - job_name: "ornith"
+    num_jobs: 1
+    exclusive: false
+    no_pull: false
+    backend: "ollama"
+    memory: 256000
+    gres: gpu:b200:2
+    models:
+      - name: ornith-1.5:397b
+        extra_body:
+          options:
+             num_ctx: 256000  # Adjust token length as needed
+ 
   - job_name: "bulk-llm"
     num_jobs: 1
     exclusive: false
     no_pull: false
     backend: "ollama"
-    gres: gpu:a100:1
+    gres: gpu:v100:1
     models:
       - tinyllama
       - nomic-embed-text 
@@ -24,14 +37,21 @@ jobs:
       - gemma4
   - job_name: "big-gemma"
     num_jobs: 1
-    gres: gpu:a100:3
+    gres: gpu:v100:4
     no_pull: false
     backend: "ollama"
     memory: 0
     exclusive: true
     models:
             - juilpark/gemma-4-31B-it-uncensored-heretic:q4_k_m
-            - tinyrick/gemma-4-31B-it-uncensored-heretic-vision-llmfan46:Q4_K_M
+            - name: tinyrick/gemma-4-31B-it-uncensored-heretic-vision-llmfan46:Q4_K_M
+              max_parallel_requests: 20
+              ctx_size: 8192        # <-- context window
+              num_ctx: 256000
+              extra_body:
+                options:
+                  num_ctx: 16384  # Adjust token length as needed
+
         #  - job_name: "big-llama3.3"
         #    num_jobs: 0
         #    memory: 0
@@ -47,7 +67,7 @@ jobs:
     num_jobs: 1
     sbatch_file: "sbatch-localai.sh"
     memory: 96000 
-    gres: gpu:a100:1
+    gres: gpu:v100:1
     mode: "image_generation"  # <--- Injects model_info: { mode: "image_generation" }
     exclusive: false
     drop_params: true  # <--- Enable per job specification
