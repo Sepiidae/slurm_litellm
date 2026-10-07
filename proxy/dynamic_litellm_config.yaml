@@ -1,26 +1,5 @@
 model_list:
 - litellm_params:
-    api_base: http://nodegpu106:20978
-    api_key: dummy-key
-    drop_params: true
-    max_parallel_requests: 5
-    model: ollama_chat/juilpark/gemma-4-31B-it-uncensored-heretic:q4_k_m
-    tool_choice: none
-  model_name: juilpark/gemma-4-31B-it-uncensored-heretic:q4_k_m
-- litellm_params:
-    api_base: http://nodegpu106:20978
-    api_key: dummy-key
-    ctx_size: 8192
-    drop_params: true
-    extra_body:
-      options:
-        num_ctx: 16384
-    max_parallel_requests: 20
-    model: ollama_chat/tinyrick/gemma-4-31B-it-uncensored-heretic-vision-llmfan46:Q4_K_M
-    num_ctx: 256000
-    tool_choice: none
-  model_name: tinyrick/gemma-4-31B-it-uncensored-heretic-vision-llmfan46:Q4_K_M
-- litellm_params:
     api_base: http://nodegpu102:11055
     api_key: dummy-key
     drop_params: true
@@ -84,6 +63,27 @@ model_list:
     model: ollama_chat/gemma4
     tool_choice: none
   model_name: gemma4
+- litellm_params:
+    api_base: http://nodegpu106:20978
+    api_key: dummy-key
+    drop_params: true
+    max_parallel_requests: 5
+    model: ollama_chat/juilpark/gemma-4-31B-it-uncensored-heretic:q4_k_m
+    tool_choice: none
+  model_name: juilpark/gemma-4-31B-it-uncensored-heretic:q4_k_m
+- litellm_params:
+    api_base: http://nodegpu106:20978
+    api_key: dummy-key
+    ctx_size: 8192
+    drop_params: true
+    extra_body:
+      options:
+        num_ctx: 16384
+    max_parallel_requests: 20
+    model: ollama_chat/tinyrick/gemma-4-31B-it-uncensored-heretic-vision-llmfan46:Q4_K_M
+    num_ctx: 256000
+    tool_choice: none
+  model_name: tinyrick/gemma-4-31B-it-uncensored-heretic-vision-llmfan46:Q4_K_M
 - litellm_params:
     api_base: http://nodegpu105:20582/v1
     api_key: dummy-key

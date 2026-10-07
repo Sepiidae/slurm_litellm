@@ -155,9 +155,11 @@ def get_user_slurm_jobs():
         return None  # Return None so orchestrator skips reconciliation
 
 
-def launch_slurm_job(job_name, gres=None, mem=None, exclusive=False, script_path="sbatch.sh"):
+def launch_slurm_job(job_name, gres=None, mem=None, exclusive=False, partition=None, script_path="sbatch.sh"):
     """Submits a new job to Slurm with optional resource configuration flags."""
     cmd = ["sbatch", f"--job-name={job_name}"]
+    if partition:
+        cmd.append(f"--partition={partition}")
     if gres:
         cmd.append(f"--gres={gres}")
     if mem:
@@ -314,6 +316,7 @@ def process_single_cluster(job_spec, all_slurm_jobs, global_no_pull=False):
     target_count = job_spec.get("num_jobs", job_spec.get("count", 1))
     gres = job_spec.get("gres", None)
     mem = job_spec.get("mem", job_spec.get("memory", None))
+    partition = job_spec.get("partition", None)
     exclusive = parse_bool(job_spec.get("exclusive", False))
     team_id = job_spec.get("team_id", None)
     backend = str(job_spec.get("backend", "ollama")).strip().lower()
@@ -347,7 +350,7 @@ def process_single_cluster(job_spec, all_slurm_jobs, global_no_pull=False):
             f"{pending_in_flight} submitted in-flight (Target: {target_count}). Submitting {needed} new job(s)..."
         )
         for _ in range(needed):
-            new_job_id = launch_slurm_job(job_name, gres=gres, mem=mem, exclusive=exclusive, script_path=script_path)
+            new_job_id = launch_slurm_job(job_name, gres=gres, mem=mem, exclusive=exclusive, partition=partition, script_path=script_path)
             if new_job_id:
                 with SUBMITTED_JOBS_LOCK:
                     SUBMITTED_JOBS[new_job_id] = {

@@ -22,6 +22,7 @@ jobs:
  
   - job_name: "bulk-llm"
     num_jobs: 1
+    partition: "default"
     exclusive: false
     no_pull: false
     backend: "ollama"
@@ -38,6 +39,7 @@ jobs:
   - job_name: "big-gemma"
     num_jobs: 1
     gres: gpu:v100:4
+    partition: "gpu"
     no_pull: false
     backend: "ollama"
     memory: 0
@@ -65,6 +67,7 @@ jobs:
         #      - muse-glimmer:latest
   - job_name: "localai"
     num_jobs: 1
+    partition: "compute"
     sbatch_file: "sbatch-localai.sh"
     memory: 96000 
     gres: gpu:v100:1
