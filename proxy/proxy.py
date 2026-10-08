@@ -156,7 +156,19 @@ def get_user_slurm_jobs():
 
 
 def format_slurm_time(days=0, hours=0, minutes=0):
-    """Convert days/hours/minutes into Slurm's --time format (DD-HH:MM)."""
+    """Convert days/hours/minutes into Slurm's --time format.
+
+    IMPORTANT (Slurm gotcha): the meaning of a value depends on the NUMBER OF
+    COLONS, not its magnitude:
+        N            -> minutes
+        MM:SS        -> minutes:seconds   (a SINGLE colon is minutes, NOT hours!)
+        HH:MM:SS     -> hours:minutes:seconds
+        DD-HH:MM:SS  -> days-hours:minutes:seconds
+
+    A bare "H:MM" like "4:00" is therefore read as *4 minutes*, which is why a
+    job configured for hours was dying after minutes. To express HOURS we must
+    always emit the two-colon form (HH:MM:SS), and DD-HH:MM:SS when days are set.
+    """
     try:
         d = int(days or 0)
         h = int(hours or 0)
@@ -166,16 +178,17 @@ def format_slurm_time(days=0, hours=0, minutes=0):
             return None
 
         total_minutes = d * 24 * 60 + h * 60 + m
-        # Normalize into days/hours/minutes.
-        dd, rem = divmod(total_minutes, 1440)
-        hh, mm = divmod(rem, 60)
+        # Normalize into days / hours (0-23) / minutes.
+        dd, rem = divmod(total_minutes, 1440)   # days, leftover minutes
+        hh, mm = divmod(rem, 60)                # hours, minutes
 
         if dd > 0:
-            return f"{dd}-{hh:02d}:{mm:02d}"
+            return f"{dd}-{hh:02d}:{mm:02d}:00"     # DD-HH:MM:SS
         elif hh > 0:
-            return f"{hh}:{mm:02d}"
+            return f"{hh:02d}:{mm:02d}:00"          # HH:MM:SS (NOT MM:SS!)
         else:
-            return str(mm)
+            # Pure minutes (< 60): a bare number is unambiguously minutes.
+            return str(total_minutes)
     except (TypeError, ValueError):
         logger.warning("Invalid duration configuration; ignoring time limit.")
         return None
