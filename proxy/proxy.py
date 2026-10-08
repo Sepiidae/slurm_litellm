@@ -155,11 +155,39 @@ def get_user_slurm_jobs():
         return None  # Return None so orchestrator skips reconciliation
 
 
-def launch_slurm_job(job_name, gres=None, mem=None, exclusive=False, partition=None, script_path="sbatch.sh"):
+def format_slurm_time(days=0, hours=0, minutes=0):
+    """Convert days/hours/minutes into Slurm's --time format (DD-HH:MM)."""
+    try:
+        d = int(days or 0)
+        h = int(hours or 0)
+        m = int(minutes or 0)
+
+        if d == 0 and h == 0 and m == 0:
+            return None
+
+        total_minutes = d * 24 * 60 + h * 60 + m
+        # Normalize into days/hours/minutes.
+        dd, rem = divmod(total_minutes, 1440)
+        hh, mm = divmod(rem, 60)
+
+        if dd > 0:
+            return f"{dd}-{hh:02d}:{mm:02d}"
+        elif hh > 0:
+            return f"{hh}:{mm:02d}"
+        else:
+            return str(mm)
+    except (TypeError, ValueError):
+        logger.warning("Invalid duration configuration; ignoring time limit.")
+        return None
+
+
+def launch_slurm_job(job_name, gres=None, mem=None, exclusive=False, partition=None, time_limit=None, script_path="sbatch.sh"):
     """Submits a new job to Slurm with optional resource configuration flags."""
     cmd = ["sbatch", f"--job-name={job_name}"]
     if partition:
         cmd.append(f"--partition={partition}")
+    if time_limit:
+        cmd.append(f"--time={time_limit}")
     if gres:
         cmd.append(f"--gres={gres}")
     if mem:
@@ -317,6 +345,19 @@ def process_single_cluster(job_spec, all_slurm_jobs, global_no_pull=False):
     gres = job_spec.get("gres", None)
     mem = job_spec.get("mem", job_spec.get("memory", None))
     partition = job_spec.get("partition", None)
+
+    # Duration in days/hours/minutes -> Slurm --time (DD-HH:MM).
+    duration_cfg = job_spec.get("duration", None)
+    time_limit = None
+    if isinstance(duration_cfg, dict):
+        time_limit = format_slurm_time(
+            days=duration_cfg.get("days"),
+            hours=duration_cfg.get("hours"),
+            minutes=duration_cfg.get("minutes"),
+        )
+    elif duration_cfg:  # allow a raw string like "1-06:30"
+        time_limit = str(duration_cfg).strip()
+
     exclusive = parse_bool(job_spec.get("exclusive", False))
     team_id = job_spec.get("team_id", None)
     backend = str(job_spec.get("backend", "ollama")).strip().lower()
@@ -350,7 +391,7 @@ def process_single_cluster(job_spec, all_slurm_jobs, global_no_pull=False):
             f"{pending_in_flight} submitted in-flight (Target: {target_count}). Submitting {needed} new job(s)..."
         )
         for _ in range(needed):
-            new_job_id = launch_slurm_job(job_name, gres=gres, mem=mem, exclusive=exclusive, partition=partition, script_path=script_path)
+            new_job_id = launch_slurm_job(job_name, gres=gres, mem=mem, exclusive=exclusive, partition=partition, time_limit=time_limit, script_path=script_path)
             if new_job_id:
                 with SUBMITTED_JOBS_LOCK:
                     SUBMITTED_JOBS[new_job_id] = {
