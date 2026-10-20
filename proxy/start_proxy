@@ -15,7 +15,7 @@ echo Loading pyrhon
 module load python/3.12.4-gcc-13.2.0-ryucfix
 
 
-sbatch --dependency=afterany:$SLURM_JOB_ID start_proxy.sh
+sbatch --dependency=afterany:$SLURM_JOB_ID start_proxy
 
 
 echo Checking for venv
@@ -51,6 +51,7 @@ if [ "$AUTO_SSH" == "true" ]
 then
 sudo dnf -y install autossh tmux
 autossh -M 0 -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -N -R 0.0.0.0:11434:localhost:$PORT xantho@home.scuba2deth.com &
+autossh -M 0 -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -N -R 0.0.0.0:11666:localhost:$PORT rresnick@rocky-login012.hpc.fau.edu &
 fi
 
 
